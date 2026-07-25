@@ -1,0 +1,17 @@
+const uwMadisonPlayerNames = [
+  "BLANK",
+  "ZAKARIA",
+  "TAHMIDUL",
+  "KISHAN",
+  "SADMAN",
+  "GAHANGIR",
+  "MUHIT",
+  "EHSAN",
+  "PRACHYA",
+  "MAHEDI",
+  "HASANUR",
+  "SAFI",
+  "MEHEDI",
+  "GM MEHEDI",
+  "MELINE",
+];

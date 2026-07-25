@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Match Tracker Controller</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="triTitansPlayerNames_home.js"></script>
+  <script src="uwMadisonPlayerNames_away.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --accent-green: #238636;
+      --accent-blue: #1f6feb;
+      --accent-red: #da3633;
+      --accent-yellow: #d29922;
+      --text: #f0f6fc;
+      --border: #30363d;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      padding: 12px;
+      max-width: 500px;
+      margin: 0 auto;
+      user-select: none;
+    }
+
+    .timer-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .timer-display {
+      font-size: 2.5rem;
+      font-weight: 800;
+      font-family: monospace;
+      color: #58a6ff;
+      margin: 8px 0;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .team-box {
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .team-score {
+      display: block;
+      color: #58a6ff;
+      font-size: 1.25rem;
+      font-weight: 800;
+      margin: -2px 0 8px;
+    }
+
+    .team-box.active-possession {
+      border-color: #3fb950;
+      background: #0d2818;
+      animation: possession-pulse 1.8s ease-in-out infinite;
+    }
+
+    @keyframes possession-pulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgb(63 185 80 / 0%);
+      }
+
+      50% {
+        box-shadow: 0 0 0 5px rgb(63 185 80 / 22%);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .team-box.active-possession {
+        animation: none;
+      }
+    }
+
+    .btn {
+      background: #21262d;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 12px 8px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      transition: transform 0.1s;
+    }
+
+    .btn:active {
+      transform: scale(0.96);
+      opacity: 0.8;
+    }
+
+    .btn-green {
+      background: var(--accent-green);
+      border: none;
+      color: #fff;
+    }
+
+    .btn-blue {
+      background: var(--accent-blue);
+      border: none;
+      color: #fff;
+    }
+
+    .possession-btn {
+      min-height: 64px;
+      font-size: 1rem;
+    }
+
+    .btn-red {
+      background: var(--accent-red);
+      border: none;
+      color: #fff;
+    }
+
+    .btn-yellow {
+      background: var(--accent-yellow);
+      border: none;
+      color: #000;
+    }
+
+    .btn-undo {
+      background: #30363d;
+      border: 1px solid #8b949e;
+      color: #f0f6fc;
+    }
+
+    .stat-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .card-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    /* Undo Card Styles */
+    .undo-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .undo-row {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    select {
+      background: #0d1117;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      min-width: 0;
+      width: 100%;
+      flex-grow: 1;
+      outline: none;
+    }
+
+    .undo-row .btn-undo {
+      flex: 0 0 auto;
+      width: auto;
+      min-width: 72px;
+      padding: 0 16px;
+    }
+
+    @media (max-width: 360px) {
+      .undo-row {
+        flex-direction: column;
+      }
+
+      .undo-row .btn-undo {
+        min-height: 42px;
+      }
+    }
+
+    dialog {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      width: min(92vw, 360px);
+      margin: auto;
+    }
+
+    dialog::backdrop {
+      background: rgb(0 0 0 / 70%);
+    }
+
+    .dialog-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .home-button {
+      display: inline-block;
+      margin-bottom: 12px;
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+      color: var(--text);
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .home-button:hover,
+    .home-button:focus-visible {
+      border-color: #58a6ff;
+      outline: none;
+    }
+
+    .auth-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgb(13 17 23 / 92%);
+      z-index: 1000;
+    }
+
+    .auth-card {
+      width: min(100%, 320px);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 12px 40px rgb(0 0 0 / 30%);
+    }
+
+    .auth-card h2 {
+      margin-bottom: 8px;
+      font-size: 1.2rem;
+    }
+
+    .auth-card p {
+      color: #8b949e;
+      margin-bottom: 14px;
+      font-size: 0.95rem;
+    }
+
+    .pin-input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0d1117;
+      color: var(--text);
+      text-align: center;
+      font-size: 1.1rem;
+      letter-spacing: 0.2rem;
+      margin-bottom: 10px;
+    }
+
+    .auth-message {
+      margin-top: 10px;
+      color: #f85149;
+      font-size: 0.9rem;
+      min-height: 1.2rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="authOverlay" class="auth-overlay">
+    <div class="auth-card">
+      <h2>Controller access</h2>
+      <p>Enter the 4-digit PIN to unlock the match tracker.</p>
+      <input id="pinInput" class="pin-input" type="password" inputmode="numeric" maxlength="4"
+        autocomplete="one-time-code" />
+      <button class="btn btn-blue" onclick="handlePinSubmit()">Unlock</button>
+      <p id="pinMessage" class="auth-message" aria-live="polite"></p>
+    </div>
+  </div>
+
+  <div id="appContent" style="display:none;">
+    <a class="home-button" href="index.html">&#8962; Home</a>
+
+    <!-- Timer Section -->
+    <div class="timer-card">
+      <div class="timer-display" id="timerDisplay">00:00</div>
+      <div class="grid-1">
+        <button class="btn btn-green" id="startTimerBtn" onclick="toggleTimer()">Start</button>
+      </div>
+    </div>
+
+    <!-- Undo Section -->
+    <div class="undo-card">
+      <label
+        style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: #8b949e; font-weight: 700;">↺
+        Undo Event / Decision Overturned</label>
+      <div class="undo-row">
+        <select id="undoSelect">
+          <option value="">No recent events</option>
+        </select>
+        <button class="btn btn-undo" onclick="undoSelectedEvent()">Undo</button>
+      </div>
+    </div>
+
+    <dialog id="playerDialog">
+      <form method="dialog" id="playerForm">
+        <h3 id="playerDialogTitle">Select player</h3>
+        <select id="playerSelect" required style="width: 100%; margin-top: 12px;"></select>
+        <div class="dialog-actions">
+          <button class="btn" value="cancel">Cancel</button>
+          <button class="btn btn-blue" value="confirm">Save event</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Main Controller Grid -->
+    <div class="grid-2">
+      <!-- HOME TEAM -->
+      <div class="team-box" id="homeBox">
+        <h2 style="margin-bottom: 8px;" id="homeTeamTitle">HOME</h2>
+        <span class="team-score" id="homeScore" aria-label="Home team goals">0</span>
+
+        <div class="stat-group">
+          <button class="btn btn-green" onclick="logEvent('home', 'goal')">+ GOAL</button>
+
+          <button class="btn" onclick="logEvent('home', 'corner')">Corner Kick</button>
+          <button class="btn" onclick="logEvent('home', 'offside')">Offside</button>
+          <button class="btn" onclick="logEvent('home', 'foul')">Foul</button>
+          <div class="card-row">
+            <button class="btn btn-yellow" onclick="logEvent('home', 'yellow_card')">🟨 Card</button>
+            <button class="btn btn-red" onclick="logEvent('home', 'red_card')">🟥 Card</button>
+          </div>
+          <button class="btn" onclick="logEvent('home', 'shot_target')">Shot on Target</button>
+          <button class="btn" onclick="logEvent('home', 'shot')">Shot</button>
+          <button class="btn btn-blue possession-btn" onclick="setPossession('home')" style="margin-bottom: 8px;">⚽
+            Possess</button>
+
+
+
+        </div>
+      </div>
+
+      <!-- AWAY TEAM -->
+      <div class="team-box" id="awayBox">
+        <h2 style="margin-bottom: 8px;" id="awayTeamTitle">AWAY</h2>
+        <span class="team-score" id="awayScore" aria-label="Away team goals">0</span>
+
+        <div class="stat-group">
+
+          <button class="btn btn-green" onclick="logEvent('away', 'goal')">+ GOAL</button>
+
+          <button class="btn" onclick="logEvent('away', 'corner')">Corner Kick</button>
+          <button class="btn" onclick="logEvent('away', 'offside')">Offside</button>
+          <button class="btn" onclick="logEvent('away', 'foul')">Foul</button>
+
+          <div class="card-row">
+            <button class="btn btn-yellow" onclick="logEvent('away', 'yellow_card')">🟨 Card</button>
+            <button class="btn btn-red" onclick="logEvent('away', 'red_card')">🟥 Card</button>
+          </div>
+
+          <button class="btn" onclick="logEvent('away', 'shot_target')">Shot on Target</button>
+          <button class="btn" onclick="logEvent('away', 'shot')">Shot</button>
+          <button class="btn btn-blue possession-btn" onclick="setPossession('away')" style="margin-bottom: 8px;">⚽
+            Possess</button>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://jiwzpkshvlapynluuvnu.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imppd3pwa3NodmxhcHlubHV1dm51Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTMyODMsImV4cCI6MjEwMDMyOTI4M30.cDYToT-IvI1dzD6VWsxAhZ5HMDeFlwes_4X9PKlzZ_g';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const MATCH_ID = 'b0f44fd3-fca1-4283-9ea4-b5d433dec662';
+    const ACCESS_PIN = '9987';
+    const AUTH_STORAGE_KEY = 'matchTrackerInputAuth';
+
+    let seconds = 0;
+    let homePossessionSec = 0;
+    let awayPossessionSec = 0;
+    let timerInterval = null;
+    let currentPossession = 'none';
+    let homeTeamName = 'HOME';
+    let awayTeamName = 'AWAY';
+    const playerRequiredEvents = new Set(['goal', 'foul', 'yellow_card', 'red_card']);
+
+    function choosePlayer(team, eventType) {
+      if (!playerRequiredEvents.has(eventType)) return Promise.resolve(null);
+
+      const players = team === 'home' ? triTitansPlayerNames : uwMadisonPlayerNames;
+      const dialog = document.getElementById('playerDialog');
+      const form = document.getElementById('playerForm');
+      const select = document.getElementById('playerSelect');
+      document.getElementById('playerDialogTitle').innerText =
+        `Select ${team === 'home' ? homeTeamName : awayTeamName} player`;
+      select.innerHTML = players
+        .filter(player => player !== 'BLANK')
+        .map(player => `<option value="${player.replace(/"/g, '&quot;')}">${player}</option>`)
+        .join('');
+
+      return new Promise(resolve => {
+        const handleClose = () => {
+          form.removeEventListener('submit', handleSubmit);
+          dialog.removeEventListener('close', handleClose);
+          resolve(dialog.returnValue === 'confirm' ? select.value : null);
+        };
+        const handleSubmit = event => {
+          if (event.submitter?.value === 'confirm' && !select.value) {
+            event.preventDefault();
+          }
+        };
+        form.addEventListener('submit', handleSubmit);
+        dialog.addEventListener('close', handleClose);
+        dialog.showModal();
+      });
+    }
+
+    // Helper to start timer if it isn't running
+    function ensureTimerRunning() {
+      if (!timerInterval) {
+        startTimer();
+      }
+    }
+
+    function startTimer() {
+      if (!timerInterval) {
+        timerInterval = setInterval(() => {
+          seconds++;
+
+          // Ticks cumulative possession duration for active team
+          if (currentPossession === 'home') {
+            homePossessionSec++;
+          } else if (currentPossession === 'away') {
+            awayPossessionSec++;
+          }
+
+          updateTimerUI();
+          if (seconds % 5 === 0) syncMatchState();
+        }, 1000);
+        updateTimerUI();
+      }
+    }
+
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        updateTimerUI();
+      }
+    }
+
+    function toggleTimer() {
+      if (timerInterval) {
+        stopTimer();
+      } else {
+        startTimer();
+      }
+    }
+
+    // Load initial match information on startup
+    async function loadMatchInfo() {
+      const { data, error } = await supabaseClient
+        .from('matches')
+        .select('home_team, away_team, home_score, away_score, match_seconds, possession_team, home_possession_sec, away_possession_sec')
+        .eq('id', MATCH_ID)
+        .single();
+
+      if (error) {
+        console.error('Error fetching match info:', error);
+        return;
+      }
+
+      if (data) {
+        homeTeamName = data.home_team || 'HOME';
+        awayTeamName = data.away_team || 'AWAY';
+        document.getElementById('homeTeamTitle').innerText = homeTeamName;
+        document.getElementById('awayTeamTitle').innerText = awayTeamName;
+        document.getElementById('homeScore').innerText = data.home_score || 0;
+        document.getElementById('awayScore').innerText = data.away_score || 0;
+
+        seconds = data.match_seconds || 0;
+        homePossessionSec = data.home_possession_sec || 0;
+        awayPossessionSec = data.away_possession_sec || 0;
+        currentPossession = data.possession_team || 'none';
+
+        updateTimerUI();
+        if (currentPossession !== 'none') {
+          setPossessionUI(currentPossession);
+        }
+      }
+
+      await refreshEventsDropdown();
+    }
+
+    function formatTime(sec) {
+      const mins = String(Math.floor(sec / 60)).padStart(2, '0');
+      const secs = String(sec % 60).padStart(2, '0');
+      return `${mins}:${secs}`;
+    }
+
+    function showAppContent() {
+      document.getElementById('authOverlay').style.display = 'none';
+      document.getElementById('appContent').style.display = 'block';
+    }
+
+    function showAuthScreen() {
+      document.getElementById('authOverlay').style.display = 'flex';
+      document.getElementById('appContent').style.display = 'none';
+      document.getElementById('pinMessage').textContent = '';
+      document.getElementById('pinInput').value = '';
+      document.getElementById('pinInput').focus();
+    }
+
+    function handlePinSubmit() {
+      const pinInput = document.getElementById('pinInput');
+      const pinMessage = document.getElementById('pinMessage');
+
+      if (pinInput.value === ACCESS_PIN) {
+        localStorage.setItem(AUTH_STORAGE_KEY, 'true');
+        pinMessage.textContent = '';
+        showAppContent();
+        loadMatchInfo();
+      } else {
+        pinMessage.textContent = 'Incorrect PIN. Please try again.';
+        pinInput.value = '';
+        pinInput.focus();
+      }
+    }
+
+    function updateTimerUI() {
+      document.getElementById('timerDisplay').innerText = formatTime(seconds);
+      const timerButton = document.getElementById('startTimerBtn');
+      timerButton.innerText = timerInterval ? 'Pause' : 'Start';
+      timerButton.classList.toggle('btn-green', !timerInterval);
+      timerButton.classList.toggle('btn-red', Boolean(timerInterval));
+    }
+
+    function setPossessionUI(team) {
+      document.getElementById('homeBox').classList.toggle('active-possession', team === 'home');
+      document.getElementById('awayBox').classList.toggle('active-possession', team === 'away');
+    }
+
+    async function setPossession(team) {
+      ensureTimerRunning();
+      currentPossession = team;
+      setPossessionUI(team);
+      await syncMatchState();
+    }
+
+    async function syncMatchState() {
+      const { error } = await supabaseClient.from('matches').update({
+        match_seconds: seconds,
+        possession_team: currentPossession,
+        home_possession_sec: homePossessionSec,
+        away_possession_sec: awayPossessionSec
+      }).eq('id', MATCH_ID);
+
+      if (error) console.error('Error syncing match state:', error);
+    }
+
+    async function logEvent(team, eventType) {
+      ensureTimerRunning();
+
+      const playerName = await choosePlayer(team, eventType);
+      // A cancelled foul still counts as a foul, but without an identified player.
+      if (playerRequiredEvents.has(eventType) && !playerName && eventType !== 'foul') return;
+
+      const { data, error: eventErr } = await supabaseClient.from('match_events').insert({
+        match_id: MATCH_ID,
+        team: team,
+        event_type: eventType,
+        match_time_sec: seconds,
+        player_name: playerName || null
+      }).select().single();
+
+      if (eventErr) {
+        console.error('Error inserting event:', eventErr);
+        alert('Failed to save event. Check console for details.');
+        return;
+      }
+
+      // Handle goal score increment
+      if (eventType === 'goal') {
+        const column = team === 'home' ? 'home_score' : 'away_score';
+        const { data: matchData } = await supabaseClient.from('matches').select(column).eq('id', MATCH_ID).single();
+        if (matchData) {
+          await supabaseClient.from('matches').update({ [column]: (matchData[column] || 0) + 1 }).eq('id', MATCH_ID);
+          document.getElementById(team === 'home' ? 'homeScore' : 'awayScore').innerText = (matchData[column] || 0) + 1;
+        }
+      }
+
+      // Offsides and fouls turn possession over to the other team.
+      if (eventType === 'offside' || eventType === 'foul') {
+        await setPossession(team === 'home' ? 'away' : 'home');
+      }
+
+      await refreshEventsDropdown();
+    }
+
+    async function refreshEventsDropdown() {
+      const { data: events, error } = await supabaseClient
+        .from('match_events')
+        .select('*')
+        .eq('match_id', MATCH_ID)
+        .order('created_at', { ascending: false })
+        .limit(15);
+
+      const select = document.getElementById('undoSelect');
+      select.innerHTML = '';
+
+      if (error || !events || events.length === 0) {
+        select.innerHTML = '<option value="">No recent events</option>';
+        return;
+      }
+
+      events.forEach(e => {
+        const teamLabel = e.team === 'home' ? homeTeamName : awayTeamName;
+        const timeLabel = formatTime(e.match_time_sec);
+        const eventLabel = e.event_type.replace(/_/g, ' ').toUpperCase();
+        const playerLabel = e.player_name ? ` - ${e.player_name}` : '';
+
+        const option = document.createElement('option');
+        option.value = JSON.stringify({ id: e.id, team: e.team, type: e.event_type });
+        option.innerText = `[${timeLabel}] ${teamLabel} - ${eventLabel}${playerLabel}`;
+        select.appendChild(option);
+      });
+    }
+
+    async function undoSelectedEvent() {
+      const select = document.getElementById('undoSelect');
+      if (!select.value) return;
+
+      const eventData = JSON.parse(select.value);
+
+      if (!confirm(`Undo this event?`)) return;
+
+      // Delete event from DB
+      const { error } = await supabaseClient
+        .from('match_events')
+        .delete()
+        .eq('id', eventData.id);
+
+      if (error) {
+        console.error('Error deleting event:', error);
+        alert('Failed to undo event.');
+        return;
+      }
+
+      // Decrement score if undone event was a goal
+      if (eventData.type === 'goal') {
+        const column = eventData.team === 'home' ? 'home_score' : 'away_score';
+        const { data: matchData } = await supabaseClient.from('matches').select(column).eq('id', MATCH_ID).single();
+        if (matchData && matchData[column] > 0) {
+          await supabaseClient.from('matches').update({ [column]: matchData[column] - 1 }).eq('id', MATCH_ID);
+          document.getElementById(eventData.team === 'home' ? 'homeScore' : 'awayScore').innerText = matchData[column] - 1;
+        }
+      }
+
+      await refreshEventsDropdown();
+    }
+
+    // Initialize application
+    if (localStorage.getItem(AUTH_STORAGE_KEY) === 'true') {
+      showAppContent();
+      loadMatchInfo();
+    } else {
+      showAuthScreen();
+    }
+  </script>
+</body>
+
+</html>

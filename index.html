@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Milwaukee Street League | Football Score Tracker</title>
+    <style>
+        :root {
+            --background: #0b0e14;
+            --surface: #161b22;
+            --surface-hover: #1d2633;
+            --border: #30363d;
+            --text: #f0f6fc;
+            --muted: #8b949e;
+            --blue: #1f6feb;
+            --green: #238636;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            padding: 24px;
+            display: grid;
+            place-items: center;
+            background: radial-gradient(circle at top, #172235 0, var(--background) 46%);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        main {
+            width: min(100%, 720px);
+            text-align: center;
+        }
+
+        .eyebrow {
+            margin: 0 0 12px;
+            color: #58a6ff;
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(2.2rem, 7vw, 4.5rem);
+            line-height: 0.98;
+            letter-spacing: -0.04em;
+        }
+
+        .subtitle {
+            margin: 18px 0 42px;
+            color: var(--muted);
+            font-size: 1.1rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .links {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            text-align: left;
+        }
+
+        .link-card {
+            display: flex;
+            min-height: 150px;
+            padding: 24px;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface);
+            color: var(--text);
+            text-decoration: none;
+            transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+        }
+
+        .link-card:hover,
+        .link-card:focus-visible {
+            background: var(--surface-hover);
+            border-color: #58a6ff;
+            outline: none;
+            transform: translateY(-3px);
+        }
+
+        .link-card.dashboard {
+            border-top: 3px solid var(--blue);
+        }
+
+        .link-card.input {
+            border-top: 3px solid var(--green);
+        }
+
+        .card-label {
+            color: var(--muted);
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .card-title {
+            margin-top: 12px;
+            font-size: 1.45rem;
+            font-weight: 800;
+        }
+
+        .arrow {
+            align-self: flex-end;
+            color: #58a6ff;
+            font-size: 1.5rem;
+        }
+
+        @media (max-width: 560px) {
+            body {
+                padding: 20px 16px;
+            }
+
+            .subtitle {
+                margin-bottom: 30px;
+                font-size: 0.9rem;
+            }
+
+            .links {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <p class="eyebrow">Milwaukee Street League</p>
+        <h1>Football</h1>
+        <p class="subtitle">Score Tracker</p>
+
+        <nav class="links" aria-label="Score tracker pages">
+            <a class="link-card dashboard" href="dashboard.html">
+                <span>
+                    <span class="card-label">View</span>
+                    <span class="card-title">Live Dashboard</span>
+                </span>
+                <span class="arrow" aria-hidden="true">&#8594;</span>
+            </a>
+            <a class="link-card input" href="input.html">
+                <span>
+                    <span class="card-label">Manage</span>
+                    <span class="card-title">Match Input</span>
+                </span>
+                <span class="arrow" aria-hidden="true">&#8594;</span>
+            </a>
+        </nav>
+    </main>
+</body>
+
+</html>
