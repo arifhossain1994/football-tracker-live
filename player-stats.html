@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Stats</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg: #0b0e14;
+            --surface: #161b22;
+            --surface-alt: #1d2633;
+            --border: #30363d;
+            --text: #f0f6fc;
+            --muted: #8b949e;
+            --blue: #1f6feb;
+            --green: #238636;
+            --accent: #7ee787;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px 16px;
+            background: radial-gradient(circle at top, #172235 0, var(--bg) 46%);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif
+        }
+
+        .page {
+            width: min(100%, 960px)
+        }
+
+        .topbar {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 64px;
+            margin-bottom: 10px
+        }
+
+        .home-link {
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-decoration: none
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(1.6rem, 5vw, 2.6rem);
+            text-align: center
+        }
+
+        .subtitle {
+            margin: 0 0 18px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase
+        }
+
+        .tiles {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+            margin-top: 18px
+        }
+
+        .tile {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px;
+            min-height: 120px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+            cursor: pointer
+        }
+
+        .tile:nth-child(1) {
+            border-top: 3px solid var(--blue);
+        }
+
+        .tile:nth-child(2) {
+            border-top: 3px solid var(--green);
+        }
+
+        .tile.is-active {
+            box-shadow: 0 14px 30px rgba(31, 111, 235, 0.15);
+        }
+
+        .tile-arrow {
+            margin-top: 12px;
+            font-size: 1.1rem;
+            color: var(--muted);
+            transition: transform 0.18s ease, color 0.18s ease;
+        }
+
+        .tile.is-active .tile-arrow {
+            transform: rotate(180deg);
+            color: var(--text);
+        }
+
+        .tile-label {
+            color: var(--muted);
+            font-size: 0.78rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.12em
+        }
+
+        .tile-value {
+            margin-top: 12px;
+            font-size: 2rem;
+            font-weight: 900
+        }
+
+        .details-panel {
+            display: none;
+            margin-top: 16px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            max-height: 40vh;
+            overflow: auto
+        }
+
+        .details-panel.visible {
+            display: block
+        }
+
+        .details-list {
+            display: grid;
+            gap: 8px
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.01)
+        }
+
+        @media(max-width:720px) {
+            .tiles {
+                grid-template-columns: repeat(2, minmax(0, 1fr))
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="page">
+        <div class="topbar">
+            <a class="home-link" href="index.html">&#8962; Home</a>
+            <h1>Player Stats</h1>
+        </div>
+        <p class="subtitle">Player-based summary</p>
+
+        <section class="tiles" aria-label="Player stats summary">
+            <article class="tile" data-stat="goals" tabindex="0">
+                <div class="tile-label">Goals</div>
+                <div class="tile-value" id="goalsValue">0</div>
+                <div class="tile-arrow" aria-hidden="true">▼</div>
+            </article>
+
+            <article class="tile" data-stat="fouls" tabindex="0">
+                <div class="tile-label">Fouls</div>
+                <div class="tile-value" id="foulsValue">0</div>
+                <div class="tile-arrow" aria-hidden="true">▼</div>
+            </article>
+        </section>
+
+        <section class="details-panel" id="detailsPanel" aria-live="polite">
+            <h2 id="detailsTitle">Details</h2>
+            <div class="details-list" id="detailsList"></div>
+        </section>
+    </main>
+
+    <script>
+        const SUPABASE_URL = 'https://jiwzpkshvlapynluuvnu.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imppd3pwa3NodmxhcHlubHV1dm51Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTMyODMsImV4cCI6MjEwMDMyOTI4M30.cDYToT-IvI1dzD6VWsxAhZ5HMDeFlwes_4X9PKlzZ_g';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const state = { matches: [], events: [] };
+
+        function updateTile(id, value) { const el = document.getElementById(id); if (el) el.textContent = Number(value || 0); }
+
+        function renderDetails(statType) {
+            const panel = document.getElementById('detailsPanel');
+            const title = document.getElementById('detailsTitle');
+            const list = document.getElementById('detailsList');
+            list.innerHTML = '';
+
+            const eventType = statType === 'goals' ? 'goal' : 'foul';
+            title.textContent = `${statType.charAt(0).toUpperCase() + statType.slice(1)} by Player`;
+            const counts = new Map();
+            (state.events || []).filter(e => e.event_type === eventType).forEach(e => {
+                const name = e.player_name || 'Unknown';
+                counts.set(name, (counts.get(name) || 0) + 1);
+            });
+            const rows = Array.from(counts.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+            if (!rows.length) { list.innerHTML = '<div class="detail-item"><div>No entries</div></div>'; panel.classList.add('visible'); return; }
+            rows.forEach(r => { const item = document.createElement('div'); item.className = 'detail-item'; item.innerHTML = `<div>${r.name}</div><div>${r.count}</div>`; list.appendChild(item); });
+
+            panel.classList.add('visible');
+        }
+
+        function setupTileInteractions() {
+            document.querySelectorAll('.tile').forEach(tile => {
+                const toggle = () => {
+                    const isActive = tile.classList.contains('is-active');
+                    document.querySelectorAll('.tile').forEach(t => t.classList.remove('is-active'));
+                    const panel = document.getElementById('detailsPanel');
+                    if (isActive) { tile.classList.remove('is-active'); panel.classList.remove('visible'); return; }
+                    tile.classList.add('is-active'); renderDetails(tile.dataset.stat);
+                };
+                tile.addEventListener('click', toggle);
+                tile.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } });
+            });
+        }
+
+        async function loadStats() {
+            const [{ data: matches, error: matchesError }, { data: events, error: eventsError }] = await Promise.all([
+                supabaseClient.from('matches').select('id, home_team, away_team, home_score, away_score, created_at'),
+                supabaseClient.from('match_events').select('id, match_id, event_type, team, player_name, match_time_sec')
+            ]);
+            if (matchesError) console.error('matches error', matchesError);
+            if (eventsError) console.error('events error', eventsError);
+            state.matches = matches || []; state.events = events || [];
+
+            const totalGoals = (state.events || []).filter(e => e.event_type === 'goal').length;
+            const totalFouls = (state.events || []).filter(e => e.event_type === 'foul').length;
+            updateTile('goalsValue', totalGoals);
+            updateTile('foulsValue', totalFouls);
+        }
+
+        function subscribeToChanges() {
+            supabaseClient
+                .channel('public:player-stats')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => { loadStats(); })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'match_events' }, () => { loadStats(); })
+                .subscribe();
+        }
+
+        setupTileInteractions();
+        loadStats();
+        subscribeToChanges();
+    </script>
+</body>
+
+</html>

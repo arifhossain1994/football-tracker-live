@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Match Stats</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg: #0b0e14;
+            --surface: #161b22;
+            --surface-alt: #1d2633;
+            --border: #30363d;
+            --text: #f0f6fc;
+            --muted: #8b949e;
+            --blue: #1f6feb;
+            --green: #238636;
+            --gold: #d29922;
+            --red: #da3633;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px 16px;
+            background: radial-gradient(circle at top, #172235 0, var(--bg) 46%);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .page {
+            width: min(100%, 960px);
+        }
+
+        .topbar {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 64px;
+            margin-bottom: 10px;
+            width: 100%;
+        }
+
+        .home-link {
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-decoration: none;
+            line-height: 1.2;
+            z-index: 2;
+        }
+
+        .home-link:hover,
+        .home-link:focus-visible {
+            border-color: #58a6ff;
+            outline: none;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(2rem, 5vw, 3.2rem);
+            letter-spacing: -0.04em;
+            text-align: center;
+            line-height: 1.1;
+        }
+
+        .subtitle {
+            margin: 0 0 20px;
+            text-align: center;
+            color: var(--muted);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+
+        .tiles {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 18px;
+            margin-top: 30px;
+        }
+
+        .tile {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px 18px;
+            min-height: 170px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+            cursor: pointer;
+            transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .tile:hover,
+        .tile:focus-visible {
+            border-color: #58a6ff;
+            transform: translateY(-2px);
+            outline: none;
+        }
+
+        .tile.is-active {
+            box-shadow: 0 14px 30px rgba(31, 111, 235, 0.15);
+        }
+
+        .tile:nth-child(1) {
+            border-top: 3px solid var(--blue);
+        }
+
+        .tile:nth-child(2) {
+            border-top: 3px solid var(--green);
+        }
+
+        .tile:nth-child(3) {
+            border-top: 3px solid var(--gold);
+        }
+
+        .tile:nth-child(4) {
+            border-top: 3px solid var(--red);
+        }
+
+        .tile:nth-child(5) {
+            border-top: 3px solid #58a6ff;
+        }
+
+        .tile:nth-child(6) {
+            border-top: 3px solid #7ee787;
+        }
+
+        .tile-label {
+            color: var(--muted);
+            font-size: 0.8rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            font-weight: 800;
+        }
+
+        .tile-value {
+            margin-top: 18px;
+            font-size: clamp(2rem, 5vw, 3.1rem);
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .tile-note {
+            margin-top: 8px;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .tile-arrow {
+            margin-top: 12px;
+            font-size: 1.1rem;
+            color: var(--muted);
+            transition: transform 0.18s ease, color 0.18s ease;
+        }
+
+        .tile.is-active .tile-arrow {
+            transform: rotate(180deg);
+            color: var(--text);
+        }
+
+        .details-panel {
+            display: none;
+            box-sizing: border-box;
+            margin-top: 18px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            max-height: min(42vh, 320px);
+            overflow-y: auto;
+        }
+
+        .details-panel.visible {
+            display: block;
+        }
+
+        .details-panel h2 {
+            margin: 0 0 12px;
+            font-size: 1rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .details-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.01);
+            color: var(--text);
+        }
+
+        .detail-group-header {
+            background: rgba(31, 111, 235, 0.14);
+            border-color: rgba(88, 166, 255, 0.7);
+        }
+
+        .detail-status {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 72px;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .detail-status.ft {
+            background: rgba(31, 111, 235, 0.2);
+            color: #58a6ff;
+            border: 1px solid rgba(88, 166, 255, 0.7);
+        }
+
+        .detail-status.scheduled {
+            background: rgba(210, 153, 34, 0.18);
+            color: #f2cc60;
+            border: 1px solid rgba(242, 204, 96, 0.8);
+        }
+
+        .detail-item.detail-subitem {
+            margin-left: 16px;
+            border-left: 2px solid rgba(88, 166, 255, 0.55);
+        }
+
+        .detail-main {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 3px;
+            text-align: left;
+        }
+
+        .detail-meta {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        @media (max-width: 720px) {
+            .tiles {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 12px;
+            }
+
+            .tile {
+                min-height: 150px;
+                padding: 18px 12px;
+            }
+
+            .tile-value {
+                font-size: clamp(1.5rem, 5vw, 2.4rem);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .tiles {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+            }
+
+            .tile {
+                min-height: 130px;
+                padding: 14px 10px;
+            }
+
+            .tile-label {
+                font-size: 0.68rem;
+                letter-spacing: 0.08em;
+            }
+
+            .tile-note {
+                font-size: 0.68rem;
+            }
+
+            .tile-arrow {
+                margin-top: 8px;
+                font-size: 0.9rem;
+            }
+
+            .details-panel {
+                max-height: 28vh;
+            }
+
+            .topbar {
+                min-height: auto;
+                justify-content: center;
+                align-items: center;
+                gap: 12px;
+                padding-top: 4px;
+                position: relative;
+            }
+
+            .home-link {
+                position: absolute;
+                left: 0;
+                top: 50%;
+                transform: translateY(-50%);
+                margin-bottom: 0;
+            }
+
+            h1 {
+                text-align: center;
+                font-size: clamp(1.6rem, 7vw, 2.2rem);
+                width: 100%;
+            }
+
+            .subtitle {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="page">
+        <div class="topbar">
+            <a class="home-link" href="index.html">&#8962; Home</a>
+            <h1>Match Stats</h1>
+            <span aria-hidden="true"></span>
+        </div>
+        <p class="subtitle">Overall Season Summary</p>
+
+        <section class="tiles" aria-label="Matches summary statistics">
+            <article class="tile" data-stat="games" tabindex="0">
+                <div class="tile-label">Games</div>
+                <div class="tile-value" id="gamesCount">0</div>
+                <div class="tile-note">Matches played</div>
+                <div class="tile-arrow" aria-hidden="true">▼</div>
+            </article>
+
+            <article class="tile" data-stat="goals" tabindex="0">
+                <div class="tile-label">Goals</div>
+                <div class="tile-value" id="goalsCount">0</div>
+                <div class="tile-note">Goals scored</div>
+                <div class="tile-arrow" aria-hidden="true">▼</div>
+            </article>
+
+            <article class="tile" data-stat="fouls" tabindex="0">
+                <div class="tile-label">Fouls</div>
+                <div class="tile-value" id="foulsCount">0</div>
+                <div class="tile-note">Fouls recorded</div>
+                <div class="tile-arrow" aria-hidden="true">▼</div>
+            </article>
+
+            <article class="tile" data-stat="corners" tabindex="0">
+                <div class="tile-label">Corners</div>
+                <div class="tile-value" id="cornersCount">0</div>
+                <div class="tile-note">Corners won</div>
+                <div class="tile-arrow" aria-hidden="true">▼</div>
+            </article>
+
+            <article class="tile" data-stat="shots_on_target" tabindex="0">
+                <div class="tile-label">Shots on Target</div>
+                <div class="tile-value" id="shotsOnTargetCount">0</div>
+                <div class="tile-note">Accurate attempts</div>
+                <div class="tile-arrow" aria-hidden="true">▼</div>
+            </article>
+
+            <article class="tile" data-stat="offside" tabindex="0">
+                <div class="tile-label">Offside</div>
+                <div class="tile-value" id="offsidesCount">0</div>
+                <div class="tile-note">Flagged plays</div>
+                <div class="tile-arrow" aria-hidden="true">▼</div>
+            </article>
+        </section>
+
+        <section class="details-panel" id="detailsPanel" aria-live="polite">
+            <h2 id="detailsTitle">Details</h2>
+            <div class="details-list" id="detailsList"></div>
+        </section>
+    </main>
+
+    <script>
+        const SUPABASE_URL = 'https://jiwzpkshvlapynluuvnu.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imppd3pwa3NodmxhcHlubHV1dm51Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTMyODMsImV4cCI6MjEwMDMyOTI4M30.cDYToT-IvI1dzD6VWsxAhZ5HMDeFlwes_4X9PKlzZ_g';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const currentState = {
+            matches: [],
+            events: []
+        };
+
+        function updateTile(id, value) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = Number(value || 0);
+            }
+        }
+
+        function formatTime(seconds) {
+            const safeSeconds = Number(seconds || 0);
+            const mins = Math.floor(safeSeconds / 60);
+            const secs = safeSeconds % 60;
+            return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+
+        function getMatchById(matchId) {
+            return currentState.matches.find(match => match.id === matchId) || null;
+        }
+
+        function getTeamLabel(team) {
+            return team === 'home' ? 'Home' : team === 'away' ? 'Away' : 'Team';
+        }
+
+        function formatCstDateTime(dateValue) {
+            const date = new Date(dateValue);
+            if (Number.isNaN(date.getTime())) {
+                return '—';
+            }
+
+            return new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/Chicago',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+                timeZoneName: 'short'
+            }).format(date);
+        }
+
+        function renderDetails(statType) {
+            const panel = document.getElementById('detailsPanel');
+            const title = document.getElementById('detailsTitle');
+            const list = document.getElementById('detailsList');
+
+            list.innerHTML = '';
+            const matchLabel = (match) => `${match.home_team || 'Home'} vs ${match.away_team || 'Away'}`;
+
+            if (statType === 'games') {
+                title.textContent = 'Game Details';
+                if (!currentState.matches.length) {
+                    list.innerHTML = '<div class="detail-item"><div class="detail-main"><strong>No games yet</strong><span class="detail-meta">Add a match to populate this report.</span></div></div>';
+                    panel.classList.add('visible');
+                    return;
+                }
+
+                currentState.matches.forEach(match => {
+                    const item = document.createElement('div');
+                    item.className = 'detail-item';
+
+                    const matchDate = new Date(match.created_at);
+                    const now = new Date();
+                    const matchSeconds = Number(match.match_seconds || 0);
+                    const isFinished = match.is_active === false || matchSeconds >= 5400;
+                    const statusText = isFinished ? 'FT' : (matchDate > now ? 'Scheduled' : '');
+                    const statusClass = isFinished ? 'ft' : (matchDate > now ? 'scheduled' : '');
+
+                    item.innerHTML = `
+                        <div class="detail-main">
+                            <strong>${matchLabel(match)}</strong>
+                            <span class="detail-meta">${match.home_score || 0} - ${match.away_score || 0}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+                            ${statusText ? `<span class="detail-status ${statusClass}">${statusText}</span>` : ''}
+                            <span class="detail-meta">${formatCstDateTime(match.created_at)}</span>
+                        </div>
+                    `;
+                    list.appendChild(item);
+                });
+            } else {
+                const eventTypes = {
+                    goals: 'goal',
+                    fouls: 'foul',
+                    corners: 'corner',
+                    shots_on_target: 'shot_target',
+                    offside: 'offside'
+                };
+
+                const eventType = eventTypes[statType];
+                const filteredEvents = (currentState.events || []).filter(event => event.event_type === eventType);
+                title.textContent = `${statType.replace('_', ' ').replace(/\b\w/g, char => char.toUpperCase())} Details`;
+
+                if (!filteredEvents.length) {
+                    list.innerHTML = '<div class="detail-item"><div class="detail-main"><strong>No entries</strong><span class="detail-meta">No matching events have been logged yet.</span></div></div>';
+                    panel.classList.add('visible');
+                    return;
+                }
+
+                const groupedByMatch = new Map();
+
+                filteredEvents.forEach(event => {
+                    const matchId = event.match_id || 'unlinked';
+                    if (!groupedByMatch.has(matchId)) {
+                        groupedByMatch.set(matchId, []);
+                    }
+                    groupedByMatch.get(matchId).push(event);
+                });
+
+                groupedByMatch.forEach((events, matchId) => {
+                    const match = getMatchById(matchId);
+                    const header = document.createElement('div');
+                    header.className = 'detail-item detail-group-header';
+                    header.innerHTML = `
+                        <div class="detail-main">
+                            <strong>${match ? matchLabel(match) : 'Unlinked match'}</strong>
+                            <span class="detail-meta">${match ? `${match.home_score || 0} - ${match.away_score || 0}` : 'Match not linked'}</span>
+                        </div>
+                        <span class="detail-meta">${match ? formatCstDateTime(match.created_at) : ''}</span>
+                    `;
+                    list.appendChild(header);
+
+                    events.forEach(event => {
+                        const item = document.createElement('div');
+                        item.className = 'detail-item detail-subitem';
+
+                        const detailText = event.player_name ? `${event.player_name} (${getTeamLabel(event.team)})` : `${getTeamLabel(event.team)}`;
+                        const timeText = event.match_time_sec !== null && event.match_time_sec !== undefined ? ` @ ${formatTime(event.match_time_sec)}` : '';
+
+                        item.innerHTML = `
+                            <div class="detail-main">
+                                <strong>${detailText}</strong>
+                                <span class="detail-meta">${match ? matchLabel(match) : 'Unlinked match'}</span>
+                            </div>
+                            <span class="detail-meta">${timeText}</span>
+                        `;
+                        list.appendChild(item);
+                    });
+                });
+            }
+
+            panel.classList.add('visible');
+        }
+
+        function setupTileInteractions() {
+            document.querySelectorAll('.tile').forEach(tile => {
+                const toggle = () => {
+                    const isActive = tile.classList.contains('is-active');
+                    document.querySelectorAll('.tile').forEach(item => item.classList.remove('is-active'));
+                    const panel = document.getElementById('detailsPanel');
+
+                    if (isActive) {
+                        tile.classList.remove('is-active');
+                        panel.classList.remove('visible');
+                        return;
+                    }
+
+                    tile.classList.add('is-active');
+                    renderDetails(tile.dataset.stat);
+                };
+
+                tile.addEventListener('click', toggle);
+                tile.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        toggle();
+                    }
+                });
+            });
+        }
+
+        async function loadStats() {
+            const [{ data: matches, error: matchesError }, { data: events, error: eventsError }] = await Promise.all([
+                supabaseClient.from('matches').select('id, home_team, away_team, home_score, away_score, created_at'),
+                supabaseClient.from('match_events').select('id, match_id, event_type, team, player_name, match_time_sec')
+            ]);
+
+            if (matchesError) {
+                console.error('Error loading matches:', matchesError);
+            }
+
+            if (eventsError) {
+                console.error('Error loading events:', eventsError);
+            }
+
+            currentState.matches = matches || [];
+            currentState.events = events || [];
+
+            const totalGames = currentState.matches.length;
+            const totalGoals = (currentState.events || []).filter(event => event.event_type === 'goal').length;
+            const totalFouls = (currentState.events || []).filter(event => event.event_type === 'foul').length;
+            const totalCorners = (currentState.events || []).filter(event => event.event_type === 'corner').length;
+            const totalShotsOnTarget = (currentState.events || []).filter(event => event.event_type === 'shot_target').length;
+            const totalOffsides = (currentState.events || []).filter(event => event.event_type === 'offside').length;
+
+            updateTile('gamesCount', totalGames);
+            updateTile('goalsCount', totalGoals);
+            updateTile('foulsCount', totalFouls);
+            updateTile('cornersCount', totalCorners);
+            updateTile('shotsOnTargetCount', totalShotsOnTarget);
+            updateTile('offsidesCount', totalOffsides);
+        }
+
+        function subscribeToChanges() {
+            supabaseClient
+                .channel('public:stats')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
+                    loadStats();
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'match_events' }, () => {
+                    loadStats();
+                })
+                .subscribe();
+        }
+
+        setupTileInteractions();
+        loadStats();
+        subscribeToChanges();
+    </script>
+</body>
+
+</html>

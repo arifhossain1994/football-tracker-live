@@ -73,6 +73,72 @@
       margin-bottom: 16px;
     }
 
+    .timer-status {
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      min-height: 1em;
+    }
+
+    .live-ticker {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(255, 83, 83, 0.12);
+      border: 1px solid rgba(255, 83, 83, 0.45);
+      color: #ff8a8a;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+      animation: livePulse 1.1s ease-in-out infinite;
+    }
+
+    .live-ticker::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ff5a5a;
+      box-shadow: 0 0 0 0 rgba(255, 90, 90, 0.7);
+      animation: liveDot 1.1s ease-in-out infinite;
+    }
+
+    @keyframes livePulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(255, 90, 90, 0.15);
+        opacity: 1;
+      }
+
+      50% {
+        box-shadow: 0 0 0 6px rgba(255, 90, 90, 0.06);
+        opacity: 0.9;
+      }
+    }
+
+    @keyframes liveDot {
+
+      0%,
+      100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(255, 90, 90, 0.7);
+      }
+
+      50% {
+        transform: scale(1.2);
+        box-shadow: 0 0 0 6px rgba(255, 90, 90, 0.15);
+      }
+    }
+
     .timer {
       font-size: 1.35rem;
       font-weight: 700;
@@ -102,10 +168,18 @@
 
     .team-logo {
       display: block;
-      width: 58px;
-      height: 58px;
+      /* inner image size — padding creates a circular backdrop to improve visibility for dark logos */
+      width: 80px;
+      height: 80px;
+      padding: 14px;
+      box-sizing: content-box;
       object-fit: contain;
       margin: 0 auto 6px;
+      background: rgba(255, 255, 255, 0.573);
+      border-radius: 999px;
+      -webkit-backdrop-filter: blur(2px);
+      backdrop-filter: blur(2px);
+      border: 1px solid rgba(255, 255, 255, 0.03);
     }
 
     .team-side {
@@ -175,41 +249,6 @@
       color: var(--text-muted);
       min-height: 18px;
       letter-spacing: 0.5px;
-    }
-
-    /* Possession Bar */
-    .possession-wrapper {
-      margin-top: 18px;
-    }
-
-    .possession-labels {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-weight: 700;
-      font-size: 0.95rem;
-      margin-bottom: 6px;
-    }
-
-    .possession-title {
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .bar-bg {
-      background: var(--away-color);
-      height: 10px;
-      border-radius: 5px;
-      overflow: hidden;
-      display: flex;
-    }
-
-    .bar-fill-home {
-      background: var(--home-color);
-      height: 100%;
-      transition: width 0.3s ease;
     }
 
     /* Stats Grid */
@@ -426,8 +465,9 @@
       }
 
       .team-logo {
-        width: 76px;
-        height: 76px;
+        width: 96px;
+        height: 96px;
+        padding: 16px;
       }
 
       .score {
@@ -436,19 +476,6 @@
 
       .goal-times {
         font-size: 0.88rem;
-      }
-
-      .possession-labels {
-        font-size: 1rem;
-      }
-
-      .possession-title {
-        font-size: 0.85rem;
-      }
-
-      .bar-bg {
-        height: 12px;
-        border-radius: 6px;
       }
 
       .stats-card {
@@ -482,10 +509,12 @@
 <body>
 
   <a class="home-button" href="index.html">&#8962; Home</a>
-  <header class="league-header">Milwaukee Street League</header>
+  <header class="league-header">MKE BD Football League</header>
 
   <!-- Scoreboard -->
   <div class="scoreboard">
+    <div class="live-ticker" id="liveTicker" hidden>Live</div>
+    <div class="timer-status" id="matchStatus"></div>
     <div class="timer" id="matchTimer">00:00</div>
     <div class="score-container">
       <div class="team-side home-side">
@@ -507,17 +536,6 @@
       </div>
     </div>
 
-    <!-- Possession Bar -->
-    <div class="possession-wrapper">
-      <div class="possession-labels">
-        <span id="homePossessionPct" style="color: var(--home-color)">50%</span>
-        <span class="possession-title">Possession</span>
-        <span id="awayPossessionPct" style="color: var(--away-color)">50%</span>
-      </div>
-      <div class="bar-bg">
-        <div class="bar-fill-home" id="possessionBarHome" style="width: 50%;"></div>
-      </div>
-    </div>
   </div>
 
   <!-- Detailed Match Stats -->
@@ -564,13 +582,45 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imppd3pwa3NodmxhcHlubHV1dm51Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTMyODMsImV4cCI6MjEwMDMyOTI4M30.cDYToT-IvI1dzD6VWsxAhZ5HMDeFlwes_4X9PKlzZ_g';
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const MATCH_ID = 'b0f44fd3-fca1-4283-9ea4-b5d433dec662';
+    const MATCH_ID = 'f9713cfb-3224-4477-b31b-1b1a09f50559';
 
     function formatTime(sec) {
       const s = parseInt(sec, 10) || 0;
       const mins = String(Math.floor(s / 60)).padStart(2, '0');
       const secs = String(s % 60).padStart(2, '0');
       return `${mins}:${secs}`;
+    }
+
+    function updateMatchStatus(sec) {
+      const statusEl = document.getElementById('matchStatus');
+      const liveTicker = document.getElementById('liveTicker');
+      const s = parseInt(sec, 10) || 0;
+      const finalState = localStorage.getItem('matchTrackerFinalState');
+      const isHalfTimeState = finalState === 'half';
+
+      if (s === 0) {
+        statusEl.textContent = '';
+        liveTicker.hidden = true;
+      } else if (s >= 5400 && finalState === 'ended') {
+        const extraMin = Math.max(0, Math.floor((s - 5400) / 60));
+        statusEl.textContent = extraMin > 0 ? `FT 90+${extraMin}` : 'FT';
+        liveTicker.hidden = true;
+      } else if (s >= 5400) {
+        statusEl.textContent = '';
+        liveTicker.hidden = true;
+      } else if (isHalfTimeState && s >= 2700 && s <= 2701) {
+        statusEl.textContent = 'HT';
+        liveTicker.hidden = false;
+      } else if (isHalfTimeState && s < 2701) {
+        statusEl.textContent = 'HT';
+        liveTicker.hidden = false;
+      } else if (s > 0) {
+        statusEl.textContent = '';
+        liveTicker.hidden = false;
+      } else {
+        statusEl.textContent = '';
+        liveTicker.hidden = true;
+      }
     }
 
     function secondsToMinuteMark(sec) {
@@ -674,8 +724,8 @@
     function setTeamLogo(teamName, logoId, side) {
       const normalizedName = String(teamName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
       const logoMap = {
-        trititans: 'images/TeamLogo/triTitans.png',
-        uwmadison: 'images/TeamLogo/uwMadison.png'
+        uwm: 'images/TeamLogo/uwm.png',
+        mke: 'images/TeamLogo/mke.png'
       };
       const logo = document.getElementById(logoId);
       const logoPath = logoMap[normalizedName];
@@ -692,7 +742,7 @@
       subscribeToChanges();
     }
 
-    // Fetch Score, Names, Timer & Possession Seconds
+    // Fetch score, team names and timer
     async function fetchMatchData() {
       const { data, error } = await supabaseClient
         .from('matches')
@@ -710,25 +760,9 @@
       setTeamLogo(awayTeamName, 'awayLogo', 'Away');
       document.getElementById('homeScore').innerText = data.home_score || 0;
       document.getElementById('awayScore').innerText = data.away_score || 0;
-      document.getElementById('matchTimer').innerText = formatTime(data.match_seconds || 0);
-
-      // Possession percentage calculation
-      const homeSec = parseInt(data.home_possession_sec, 10) || 0;
-      const awaySec = parseInt(data.away_possession_sec, 10) || 0;
-      const totalSec = homeSec + awaySec;
-
-      if (totalSec > 0) {
-        const homePct = Math.round((homeSec / totalSec) * 100);
-        const awayPct = 100 - homePct;
-
-        document.getElementById('homePossessionPct').innerText = `${homePct}%`;
-        document.getElementById('awayPossessionPct').innerText = `${awayPct}%`;
-        document.getElementById('possessionBarHome').style.width = `${homePct}%`;
-      } else {
-        document.getElementById('homePossessionPct').innerText = '50%';
-        document.getElementById('awayPossessionPct').innerText = '50%';
-        document.getElementById('possessionBarHome').style.width = '50%';
-      }
+      const matchSeconds = data.match_seconds || 0;
+      document.getElementById('matchTimer').innerText = formatTime(matchSeconds);
+      updateMatchStatus(matchSeconds);
     }
 
     // Aggregate statistics and goal times from match_events table

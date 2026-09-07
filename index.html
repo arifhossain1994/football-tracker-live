@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Milwaukee Street League | Football Score Tracker</title>
+    <title>MKE BD Football League | Football Score Tracker</title>
     <style>
         :root {
             --background: #0b0e14;
@@ -63,7 +63,7 @@
 
         .links {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 14px;
             text-align: left;
         }
@@ -96,6 +96,14 @@
 
         .link-card.input {
             border-top: 3px solid var(--green);
+        }
+
+        .link-card.stats {
+            border-top: 3px solid #d29922;
+        }
+
+        .link-card.player-stats {
+            border-top: 3px solid #7ee787;
         }
 
         .card-label {
@@ -137,7 +145,7 @@
 
 <body>
     <main>
-        <p class="eyebrow">Milwaukee Street League</p>
+        <p class="eyebrow">MKE BD Football League</p>
         <h1>Football</h1>
         <p class="subtitle">Score Tracker</p>
 
@@ -145,6 +153,7 @@
             <a class="link-card dashboard" href="dashboard.html">
                 <span>
                     <span class="card-label">View</span>
+                    <br>
                     <span class="card-title">Live Dashboard</span>
                 </span>
                 <span class="arrow" aria-hidden="true">&#8594;</span>
@@ -152,7 +161,24 @@
             <a class="link-card input" href="input.html">
                 <span>
                     <span class="card-label">Manage</span>
+                    <br>
                     <span class="card-title">Match Input</span>
+                </span>
+                <span class="arrow" aria-hidden="true">&#8594;</span>
+            </a>
+            <a class="link-card stats" href="stats.html">
+                <span>
+                    <span class="card-label">Review</span>
+                    <br>
+                    <span class="card-title">Match Stats</span>
+                </span>
+                <span class="arrow" aria-hidden="true">&#8594;</span>
+            </a>
+            <a class="link-card player-stats" href="player-stats.html">
+                <span>
+                    <span class="card-label">Players</span>
+                    <br>
+                    <span class="card-title">Player Stats</span>
                 </span>
                 <span class="arrow" aria-hidden="true">&#8594;</span>
             </a>

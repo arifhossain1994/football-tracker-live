@@ -6,8 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Match Tracker Controller</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="triTitansPlayerNames_home.js"></script>
-  <script src="uwMadisonPlayerNames_away.js"></script>
+  <script src="uwmPlayerNames_home.js"></script>
+  <script src="mkeSocceroosPlayerNames_away.js"></script>
   <style>
     :root {
       --bg: #0d1117;
@@ -76,28 +76,11 @@
       margin: -2px 0 8px;
     }
 
-    .team-box.active-possession {
-      border-color: #3fb950;
-      background: #0d2818;
-      animation: possession-pulse 1.8s ease-in-out infinite;
-    }
-
-    @keyframes possession-pulse {
-
-      0%,
-      100% {
-        box-shadow: 0 0 0 0 rgb(63 185 80 / 0%);
-      }
-
-      50% {
-        box-shadow: 0 0 0 5px rgb(63 185 80 / 22%);
-      }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .team-box.active-possession {
-        animation: none;
-      }
+    .state-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
     }
 
     .btn {
@@ -128,11 +111,6 @@
       background: var(--accent-blue);
       border: none;
       color: #fff;
-    }
-
-    .possession-btn {
-      min-height: 64px;
-      font-size: 1rem;
     }
 
     .btn-red {
@@ -342,6 +320,12 @@
       </div>
     </div>
 
+    <div class="state-row">
+      <button class="btn btn-red" type="button" onclick="confirmEndMatch()">End Match</button>
+      <button class="btn btn-blue" type="button" onclick="confirmMatchState('half')">Half-Time</button>
+      <button class="btn btn-blue" type="button" onclick="confirmMatchState('full')">Full-Time</button>
+    </div>
+
     <dialog id="playerDialog">
       <form method="dialog" id="playerForm">
         <h3 id="playerDialogTitle">Select player</h3>
@@ -372,11 +356,6 @@
           </div>
           <button class="btn" onclick="logEvent('home', 'shot_target')">Shot on Target</button>
           <button class="btn" onclick="logEvent('home', 'shot')">Shot</button>
-          <button class="btn btn-blue possession-btn" onclick="setPossession('home')" style="margin-bottom: 8px;">⚽
-            Possess</button>
-
-
-
         </div>
       </div>
 
@@ -400,9 +379,6 @@
 
           <button class="btn" onclick="logEvent('away', 'shot_target')">Shot on Target</button>
           <button class="btn" onclick="logEvent('away', 'shot')">Shot</button>
-          <button class="btn btn-blue possession-btn" onclick="setPossession('away')" style="margin-bottom: 8px;">⚽
-            Possess</button>
-
         </div>
       </div>
     </div>
@@ -413,15 +389,14 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imppd3pwa3NodmxhcHlubHV1dm51Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTMyODMsImV4cCI6MjEwMDMyOTI4M30.cDYToT-IvI1dzD6VWsxAhZ5HMDeFlwes_4X9PKlzZ_g';
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const MATCH_ID = 'b0f44fd3-fca1-4283-9ea4-b5d433dec662';
+    const MATCH_ID = 'f9713cfb-3224-4477-b31b-1b1a09f50559';
     const ACCESS_PIN = '9987';
     const AUTH_STORAGE_KEY = 'matchTrackerInputAuth';
+    const MATCH_END_STATE_KEY = 'matchTrackerFinalState';
 
     let seconds = 0;
-    let homePossessionSec = 0;
-    let awayPossessionSec = 0;
     let timerInterval = null;
-    let currentPossession = 'none';
+    let matchEnded = false;
     let homeTeamName = 'HOME';
     let awayTeamName = 'AWAY';
     const playerRequiredEvents = new Set(['goal', 'foul', 'yellow_card', 'red_card']);
@@ -429,7 +404,7 @@
     function choosePlayer(team, eventType) {
       if (!playerRequiredEvents.has(eventType)) return Promise.resolve(null);
 
-      const players = team === 'home' ? triTitansPlayerNames : uwMadisonPlayerNames;
+      const players = team === 'home' ? uwmPlayerNames_home : mkeSocceroosPlayerNames_away;
       const dialog = document.getElementById('playerDialog');
       const form = document.getElementById('playerForm');
       const select = document.getElementById('playerSelect');
@@ -465,17 +440,11 @@
     }
 
     function startTimer() {
+      if (matchEnded) return;
+
       if (!timerInterval) {
         timerInterval = setInterval(() => {
           seconds++;
-
-          // Ticks cumulative possession duration for active team
-          if (currentPossession === 'home') {
-            homePossessionSec++;
-          } else if (currentPossession === 'away') {
-            awayPossessionSec++;
-          }
-
           updateTimerUI();
           if (seconds % 5 === 0) syncMatchState();
         }, 1000);
@@ -492,6 +461,8 @@
     }
 
     function toggleTimer() {
+      if (matchEnded) return;
+
       if (timerInterval) {
         stopTimer();
       } else {
@@ -503,7 +474,7 @@
     async function loadMatchInfo() {
       const { data, error } = await supabaseClient
         .from('matches')
-        .select('home_team, away_team, home_score, away_score, match_seconds, possession_team, home_possession_sec, away_possession_sec')
+        .select('home_team, away_team, home_score, away_score, match_seconds')
         .eq('id', MATCH_ID)
         .single();
 
@@ -521,14 +492,8 @@
         document.getElementById('awayScore').innerText = data.away_score || 0;
 
         seconds = data.match_seconds || 0;
-        homePossessionSec = data.home_possession_sec || 0;
-        awayPossessionSec = data.away_possession_sec || 0;
-        currentPossession = data.possession_team || 'none';
-
+        matchEnded = localStorage.getItem(MATCH_END_STATE_KEY) === 'ended';
         updateTimerUI();
-        if (currentPossession !== 'none') {
-          setPossessionUI(currentPossession);
-        }
       }
 
       await refreshEventsDropdown();
@@ -571,30 +536,66 @@
 
     function updateTimerUI() {
       document.getElementById('timerDisplay').innerText = formatTime(seconds);
+
+      const appButtons = document.querySelectorAll('#appContent button');
+      appButtons.forEach(button => {
+        const isActionButton = true;
+        const shouldDisable = matchEnded && isActionButton && seconds > 0;
+        button.disabled = shouldDisable;
+      });
+
       const timerButton = document.getElementById('startTimerBtn');
+      timerButton.disabled = matchEnded && seconds > 0;
+      timerButton.title = matchEnded && seconds > 0 ? 'Match has ended' : 'Start or pause the timer';
       timerButton.innerText = timerInterval ? 'Pause' : 'Start';
-      timerButton.classList.toggle('btn-green', !timerInterval);
+      timerButton.classList.toggle('btn-green', !timerInterval && !(matchEnded && seconds > 0));
       timerButton.classList.toggle('btn-red', Boolean(timerInterval));
+      timerButton.classList.toggle('btn-undo', matchEnded && seconds > 0 && !timerInterval);
     }
 
-    function setPossessionUI(team) {
-      document.getElementById('homeBox').classList.toggle('active-possession', team === 'home');
-      document.getElementById('awayBox').classList.toggle('active-possession', team === 'away');
+    function setMatchState(state) {
+      matchEnded = false;
+
+      if (state === 'half') {
+        seconds = 2700;
+        localStorage.setItem(MATCH_END_STATE_KEY, 'half');
+      } else if (state === 'full') {
+        seconds = 5400;
+        localStorage.setItem(MATCH_END_STATE_KEY, 'manual_full_time');
+      }
+
+      const appButtons = document.querySelectorAll('#appContent button');
+      appButtons.forEach(button => {
+        button.disabled = false;
+      });
+
+      updateTimerUI();
+      syncMatchState();
     }
 
-    async function setPossession(team) {
-      ensureTimerRunning();
-      currentPossession = team;
-      setPossessionUI(team);
-      await syncMatchState();
+    function confirmMatchState(state) {
+      const label = state === 'half' ? 'Half-Time' : 'Full-Time';
+      const confirmed = window.confirm(`Set match state to ${label}?`);
+      if (!confirmed) return;
+
+      setMatchState(state);
+    }
+
+    function confirmEndMatch() {
+      const confirmed = window.confirm('End the match?');
+      if (!confirmed) return;
+
+      stopTimer();
+      seconds = Math.max(seconds, 5400);
+      matchEnded = true;
+      localStorage.setItem(MATCH_END_STATE_KEY, 'ended');
+      updateTimerUI();
+      syncMatchState();
     }
 
     async function syncMatchState() {
       const { error } = await supabaseClient.from('matches').update({
-        match_seconds: seconds,
-        possession_team: currentPossession,
-        home_possession_sec: homePossessionSec,
-        away_possession_sec: awayPossessionSec
+        match_seconds: seconds
       }).eq('id', MATCH_ID);
 
       if (error) console.error('Error syncing match state:', error);
@@ -629,11 +630,6 @@
           await supabaseClient.from('matches').update({ [column]: (matchData[column] || 0) + 1 }).eq('id', MATCH_ID);
           document.getElementById(team === 'home' ? 'homeScore' : 'awayScore').innerText = (matchData[column] || 0) + 1;
         }
-      }
-
-      // Offsides and fouls turn possession over to the other team.
-      if (eventType === 'offside' || eventType === 'foul') {
-        await setPossession(team === 'home' ? 'away' : 'home');
       }
 
       await refreshEventsDropdown();
