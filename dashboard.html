@@ -583,6 +583,7 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const MATCH_ID = 'f9713cfb-3224-4477-b31b-1b1a09f50559';
+    let matchFulltimeMin = 90; // default full-time length in minutes
 
     function formatTime(sec) {
       const s = parseInt(sec, 10) || 0;
@@ -597,21 +598,18 @@
       const s = parseInt(sec, 10) || 0;
       const finalState = localStorage.getItem('matchTrackerFinalState');
       const isHalfTimeState = finalState === 'half';
+      const fullSec = Math.floor(matchFulltimeMin * 60);
+      const halfSec = Math.floor((matchFulltimeMin / 2) * 60);
 
       if (s === 0) {
         statusEl.textContent = '';
         liveTicker.hidden = true;
-      } else if (s >= 5400 && finalState === 'ended') {
-        const extraMin = Math.max(0, Math.floor((s - 5400) / 60));
-        statusEl.textContent = extraMin > 0 ? `FT 90+${extraMin}` : 'FT';
+      } else if (s >= fullSec) {
+        // Show full-time (and extra minutes) once time reaches configured full-time
+        const extraMin = Math.max(0, Math.floor((s - fullSec) / 60));
+        statusEl.textContent = extraMin > 0 ? `FT ${matchFulltimeMin}+${extraMin}` : 'FT';
         liveTicker.hidden = true;
-      } else if (s >= 5400) {
-        statusEl.textContent = '';
-        liveTicker.hidden = true;
-      } else if (isHalfTimeState && s >= 2700 && s <= 2701) {
-        statusEl.textContent = 'HT';
-        liveTicker.hidden = false;
-      } else if (isHalfTimeState && s < 2701) {
+      } else if (isHalfTimeState) {
         statusEl.textContent = 'HT';
         liveTicker.hidden = false;
       } else if (s > 0) {
@@ -760,6 +758,8 @@
       setTeamLogo(awayTeamName, 'awayLogo', 'Away');
       document.getElementById('homeScore').innerText = data.home_score || 0;
       document.getElementById('awayScore').innerText = data.away_score || 0;
+      // read configured full time length from DB if present
+      matchFulltimeMin = Number(data.match_fulltime_min) || matchFulltimeMin;
       const matchSeconds = data.match_seconds || 0;
       document.getElementById('matchTimer').innerText = formatTime(matchSeconds);
       updateMatchStatus(matchSeconds);

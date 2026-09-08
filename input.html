@@ -397,6 +397,7 @@
     let seconds = 0;
     let timerInterval = null;
     let matchEnded = false;
+    let matchFulltimeMin = 90; // default full-time length in minutes
     let homeTeamName = 'HOME';
     let awayTeamName = 'AWAY';
     const playerRequiredEvents = new Set(['goal', 'foul', 'yellow_card', 'red_card']);
@@ -440,6 +441,11 @@
     }
 
     function startTimer() {
+      if (matchEnded && seconds > 0) {
+        matchEnded = false;
+        localStorage.removeItem(MATCH_END_STATE_KEY);
+      }
+
       if (matchEnded) return;
 
       if (!timerInterval) {
@@ -461,6 +467,11 @@
     }
 
     function toggleTimer() {
+      if (matchEnded && seconds > 0) {
+        matchEnded = false;
+        localStorage.removeItem(MATCH_END_STATE_KEY);
+      }
+
       if (matchEnded) return;
 
       if (timerInterval) {
@@ -474,7 +485,7 @@
     async function loadMatchInfo() {
       const { data, error } = await supabaseClient
         .from('matches')
-        .select('home_team, away_team, home_score, away_score, match_seconds')
+        .select('home_team, away_team, home_score, away_score, match_seconds, match_fulltime_min')
         .eq('id', MATCH_ID)
         .single();
 
@@ -491,8 +502,15 @@
         document.getElementById('homeScore').innerText = data.home_score || 0;
         document.getElementById('awayScore').innerText = data.away_score || 0;
 
+        // Use match_fulltime_min from DB if available
+        matchFulltimeMin = Number(data.match_fulltime_min) || matchFulltimeMin;
+
         seconds = data.match_seconds || 0;
-        matchEnded = localStorage.getItem(MATCH_END_STATE_KEY) === 'ended';
+        const persistedEndedState = localStorage.getItem(MATCH_END_STATE_KEY) === 'ended';
+        if (persistedEndedState && seconds === 0) {
+          localStorage.removeItem(MATCH_END_STATE_KEY);
+        }
+        matchEnded = persistedEndedState && seconds > 0;
         updateTimerUI();
       }
 
@@ -539,28 +557,30 @@
 
       const appButtons = document.querySelectorAll('#appContent button');
       appButtons.forEach(button => {
-        const isActionButton = true;
-        const shouldDisable = matchEnded && isActionButton && seconds > 0;
+        if (button.id === 'startTimerBtn') return;
+        const shouldDisable = matchEnded && seconds > 0;
         button.disabled = shouldDisable;
       });
 
       const timerButton = document.getElementById('startTimerBtn');
-      timerButton.disabled = matchEnded && seconds > 0;
-      timerButton.title = matchEnded && seconds > 0 ? 'Match has ended' : 'Start or pause the timer';
+      timerButton.disabled = false;
+      timerButton.title = 'Start or pause the timer';
       timerButton.innerText = timerInterval ? 'Pause' : 'Start';
-      timerButton.classList.toggle('btn-green', !timerInterval && !(matchEnded && seconds > 0));
+      timerButton.classList.toggle('btn-green', !timerInterval);
       timerButton.classList.toggle('btn-red', Boolean(timerInterval));
-      timerButton.classList.toggle('btn-undo', matchEnded && seconds > 0 && !timerInterval);
+      timerButton.classList.toggle('btn-undo', false);
     }
 
     function setMatchState(state) {
       matchEnded = false;
 
       if (state === 'half') {
-        seconds = 2700;
+        // set to half of configured full-time (rounded down)
+        seconds = Math.floor((matchFulltimeMin / 2) * 60);
         localStorage.setItem(MATCH_END_STATE_KEY, 'half');
       } else if (state === 'full') {
-        seconds = 5400;
+        // set to configured full-time
+        seconds = Math.floor(matchFulltimeMin * 60);
         localStorage.setItem(MATCH_END_STATE_KEY, 'manual_full_time');
       }
 
@@ -586,7 +606,8 @@
       if (!confirmed) return;
 
       stopTimer();
-      seconds = Math.max(seconds, 5400);
+      // Ensure match time is at least the configured full-time
+      seconds = Math.max(seconds, Math.floor(matchFulltimeMin * 60));
       matchEnded = true;
       localStorage.setItem(MATCH_END_STATE_KEY, 'ended');
       updateTimerUI();
