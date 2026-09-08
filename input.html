@@ -131,6 +131,12 @@
       color: #f0f6fc;
     }
 
+    /* Visual disabled state without preventing clicks */
+    .btn.disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     .stat-group {
       display: flex;
       flex-direction: column;
@@ -322,8 +328,8 @@
 
     <div class="state-row">
       <button class="btn btn-red" type="button" onclick="confirmEndMatch()">End Match</button>
-      <button class="btn btn-blue" type="button" onclick="confirmMatchState('half')">Half-Time</button>
-      <button class="btn btn-blue" type="button" onclick="confirmMatchState('full')">Full-Time</button>
+      <button id="halfBtn" class="btn btn-blue" type="button" onclick="confirmMatchState('half')">Half-Time</button>
+      <button id="fullBtn" class="btn btn-blue" type="button" onclick="confirmMatchState('full')">Full-Time</button>
     </div>
 
     <dialog id="playerDialog">
@@ -562,6 +568,19 @@
         button.disabled = shouldDisable;
       });
 
+      // Visually mark Half/Full while the clock is running, but keep them clickable
+      const halfBtn = document.getElementById('halfBtn');
+      const fullBtn = document.getElementById('fullBtn');
+      const shouldVisuallyDisable = Boolean(timerInterval) || (matchEnded && seconds > 0);
+      if (halfBtn) {
+        halfBtn.classList.toggle('disabled', shouldVisuallyDisable);
+        if (shouldVisuallyDisable) halfBtn.setAttribute('aria-disabled', 'true'); else halfBtn.removeAttribute('aria-disabled');
+      }
+      if (fullBtn) {
+        fullBtn.classList.toggle('disabled', shouldVisuallyDisable);
+        if (shouldVisuallyDisable) fullBtn.setAttribute('aria-disabled', 'true'); else fullBtn.removeAttribute('aria-disabled');
+      }
+
       const timerButton = document.getElementById('startTimerBtn');
       timerButton.disabled = false;
       timerButton.title = 'Start or pause the timer';
@@ -594,6 +613,11 @@
     }
 
     function confirmMatchState(state) {
+      // Prevent setting half/full while the timer is running
+      if (timerInterval) {
+        alert('Please pause the clock before setting Half-Time or Full-Time.');
+        return;
+      }
       const label = state === 'half' ? 'Half-Time' : 'Full-Time';
       const confirmed = window.confirm(`Set match state to ${label}?`);
       if (!confirmed) return;
