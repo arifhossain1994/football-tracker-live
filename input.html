@@ -396,7 +396,7 @@
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const MATCH_ID = 'f9713cfb-3224-4477-b31b-1b1a09f50559';
-    const ACCESS_PIN = '9987';
+    const ACCESS_PIN_NAME = 'input_controller';
     const AUTH_STORAGE_KEY = 'matchTrackerInputAuth';
     const MATCH_END_STATE_KEY = 'matchTrackerFinalState';
 
@@ -407,6 +407,60 @@
     let homeTeamName = 'HOME';
     let awayTeamName = 'AWAY';
     const playerRequiredEvents = new Set(['goal', 'foul', 'yellow_card', 'red_card']);
+    /**
+     * Example for hash pin using SHA-256 in the browser: use this in browser console to generate a hash for a PIN and store it in the database.
+     * const pin = '9987';
+    const encoder = new TextEncoder();
+    const digest = await crypto.subtle.digest('SHA-256', encoder.encode(pin));
+    const hash = Array.from(new Uint8Array(digest))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    
+    console.log(hash);
+     * */
+    async function hashPin(pin) {
+      const normalizedPin = String(pin ?? '').trim();
+      const encoder = new TextEncoder();
+      const data = encoder.encode(normalizedPin);
+      const digest = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(digest))
+        .map(byte => byte.toString(16).padStart(2, '0'))
+        .join('')
+        .toLowerCase();
+    }
+
+    async function validatePinForPage(pageName, submittedPin) {
+      const normalizedPin = String(submittedPin ?? '').trim();
+      if (!normalizedPin) return false;
+
+      const pinHash = await hashPin(normalizedPin);
+      const { data, error } = await supabaseClient
+        .from('app_access_pins')
+        .select('id, pin_hash')
+        .eq('name', String(pageName));
+
+      if (error) {
+        console.error('Error validating page PIN:', error);
+        return false;
+      }
+
+      const rows = Array.isArray(data) ? data : [];
+      const normalizedMatches = rows.some(row => {
+        const storedHash = String(row?.pin_hash ?? '').trim();
+        return storedHash.toLowerCase() === pinHash.toLowerCase();
+      });
+
+      if (!normalizedMatches) {
+        console.log('PIN mismatch debug:', {
+          pageName,
+          submittedPin,
+          pinHash,
+          rows: rows.map(row => ({ id: row.id, pin_hash: row.pin_hash }))
+        });
+      }
+
+      return normalizedMatches;
+    }
 
     function choosePlayer(team, eventType) {
       if (!playerRequiredEvents.has(eventType)) return Promise.resolve(null);
@@ -542,11 +596,26 @@
       document.getElementById('pinInput').focus();
     }
 
-    function handlePinSubmit() {
+    async function handlePinSubmit() {
       const pinInput = document.getElementById('pinInput');
       const pinMessage = document.getElementById('pinMessage');
+      const enteredPin = (pinInput.value || '').trim();
 
-      if (pinInput.value === ACCESS_PIN) {
+      if (!enteredPin) {
+        pinMessage.textContent = 'Please enter the PIN.';
+        return;
+      }
+
+      if (!/^\d{4}$/.test(enteredPin)) {
+        pinMessage.textContent = 'PIN must be 4 digits.';
+        pinInput.value = '';
+        pinInput.focus();
+        return;
+      }
+
+      const isValid = await validatePinForPage(ACCESS_PIN_NAME, enteredPin);
+
+      if (isValid) {
         localStorage.setItem(AUTH_STORAGE_KEY, 'true');
         pinMessage.textContent = '';
         showAppContent();

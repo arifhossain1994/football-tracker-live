@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Match</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --background: #0b0e14;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #f0f6fc;
+            --muted: #8b949e;
+            --blue: #1f6feb;
+            --green: #238636;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            padding: 24px;
+            display: grid;
+            place-items: center;
+            background: radial-gradient(circle at top, #172235 0, var(--background) 46%);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        main {
+            width: min(100%, 760px);
+            text-align: left;
+            background: var(--surface);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        h1 {
+            margin: 0 0 6px 0;
+            font-size: 1.6rem;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            margin-bottom: 18px;
+        }
+
+        form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-areas:
+                "home-team away-team"
+                "home-squad away-squad";
+            gap: 12px;
+        }
+
+        .form-block {
+            min-width: 0;
+        }
+
+        #homeTeamGroup {
+            grid-area: home-team;
+        }
+
+        #awayTeamGroup {
+            grid-area: away-team;
+        }
+
+        #homeSquadGroup {
+            grid-area: home-squad;
+        }
+
+        #awaySquadGroup {
+            grid-area: away-squad;
+        }
+
+        label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 0.96rem;
+        }
+
+        .players-list {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: linear-gradient(180deg, rgba(22, 27, 34, 0.6), rgba(13, 17, 23, 0.6));
+            max-height: 280px;
+            overflow: auto;
+        }
+
+        .player-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 4px;
+            border-radius: 6px;
+        }
+
+        .player-item input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+        }
+
+        .player-item.disabled {
+            opacity: 0.45;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 6px;
+        }
+
+        .btn {
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: rgba(31, 111, 235, 0.12);
+            color: var(--text);
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-cancel {
+            background: transparent;
+            border-color: var(--border);
+        }
+
+        .note {
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .auth-overlay {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgb(13 17 23 / 92%);
+            z-index: 1000;
+        }
+
+        .auth-card {
+            width: min(100%, 320px);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 12px 40px rgb(0 0 0 / 30%);
+        }
+
+        .auth-card h2 {
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+
+        .auth-card p {
+            color: var(--muted);
+            margin-bottom: 14px;
+            font-size: 0.95rem;
+        }
+
+        .pin-input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #0d1117;
+            color: var(--text);
+            text-align: center;
+            font-size: 1.1rem;
+            letter-spacing: 0.2rem;
+            margin-bottom: 10px;
+        }
+
+        .auth-message {
+            margin-top: 10px;
+            color: #f85149;
+            font-size: 0.9rem;
+            min-height: 1.2rem;
+        }
+
+        @media (max-width: 640px) {
+            form {
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "home-team"
+                    "home-squad"
+                    "away-team"
+                    "away-squad";
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="authOverlay" class="auth-overlay">
+        <div class="auth-card">
+            <h2>Controller access</h2>
+            <p>Enter the 4-digit PIN to unlock match creation.</p>
+            <input id="pinInput" class="pin-input" type="password" inputmode="numeric" maxlength="4"
+                autocomplete="one-time-code" />
+            <button class="btn" type="button" id="unlockPinBtn">Unlock</button>
+            <p id="pinMessage" class="auth-message" aria-live="polite"></p>
+        </div>
+    </div>
+
+    <main id="appContent" style="display:none;">
+        <h1>Create Match</h1>
+        <p class="subtitle">Define teams, pick squads and set initial scores.</p>
+
+        <form id="matchForm">
+            <div id="homeTeamGroup" class="form-block">
+                <label for="homeName">Home Team</label>
+                <input id="homeName" name="homeName" type="text" placeholder="Home team name" required />
+            </div>
+
+            <div id="awayTeamGroup" class="form-block">
+                <label for="awayName">Away Team</label>
+                <input id="awayName" name="awayName" type="text" placeholder="Away team name" required />
+            </div>
+
+            <div id="homeSquadGroup" class="form-block">
+                <label for="homeSquad">Home Squad (pick players)</label>
+                <div id="homeSquad" class="players-list" aria-label="Home squad list"></div>
+            </div>
+
+            <div id="awaySquadGroup" class="form-block">
+                <label for="awaySquad">Away Squad (pick players)</label>
+                <div id="awaySquad" class="players-list" aria-label="Away squad list"></div>
+            </div>
+
+            <!-- goals removed: scores are handled live in the match controller -->
+
+            <div class="note">Select players for each team; players selected for one team will be disabled for the
+                other.</div>
+
+            <div class="actions">
+                <a class="btn btn-cancel" href="index.html">Cancel</a>
+                <button class="btn" type="submit">Create Match</button>
+            </div>
+        </form>
+    </main>
+
+    <script>
+        const SUPABASE_URL = 'https://jiwzpkshvlapynluuvnu.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imppd3pwa3NodmxhcHlubHV1dm51Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTMyODMsImV4cCI6MjEwMDMyOTI4M30.cDYToT-IvI1dzD6VWsxAhZ5HMDeFlwes_4X9PKlzZ_g';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const ACCESS_PIN_NAME = 'input_controller';
+        const AUTH_STORAGE_KEY = 'matchTrackerInputAuth';
+
+        async function hashPin(pin) {
+            const normalizedPin = String(pin ?? '').trim();
+            const encoder = new TextEncoder();
+            const data = encoder.encode(normalizedPin);
+            const digest = await crypto.subtle.digest('SHA-256', data);
+            return Array.from(new Uint8Array(digest))
+                .map(byte => byte.toString(16).padStart(2, '0'))
+                .join('')
+                .toLowerCase();
+        }
+
+        async function validatePinForPage(pageName, submittedPin) {
+            const normalizedPin = String(submittedPin ?? '').trim();
+            if (!normalizedPin) return false;
+
+            const pinHash = await hashPin(normalizedPin);
+            const { data, error } = await supabaseClient
+                .from('app_access_pins')
+                .select('id, pin_hash')
+                .eq('name', String(pageName));
+
+            if (error) {
+                console.error('Error validating page PIN:', error);
+                return false;
+            }
+
+            const rows = Array.isArray(data) ? data : [];
+            return rows.some(row => String(row?.pin_hash ?? '').trim().toLowerCase() === pinHash.toLowerCase());
+        }
+
+        function showAppContent() {
+            document.getElementById('authOverlay').style.display = 'none';
+            document.getElementById('appContent').style.display = 'block';
+        }
+
+        function showAuthScreen() {
+            document.getElementById('authOverlay').style.display = 'flex';
+            document.getElementById('appContent').style.display = 'none';
+            document.getElementById('pinMessage').textContent = '';
+            document.getElementById('pinInput').value = '';
+            document.getElementById('pinInput').focus();
+        }
+
+        async function handlePinSubmit() {
+            const pinInput = document.getElementById('pinInput');
+            const pinMessage = document.getElementById('pinMessage');
+            const enteredPin = (pinInput.value || '').trim();
+
+            if (!enteredPin) {
+                pinMessage.textContent = 'Please enter the PIN.';
+                return;
+            }
+
+            if (!/^\d{4}$/.test(enteredPin)) {
+                pinMessage.textContent = 'PIN must be 4 digits.';
+                pinInput.value = '';
+                pinInput.focus();
+                return;
+            }
+
+            const isValid = await validatePinForPage(ACCESS_PIN_NAME, enteredPin);
+
+            if (isValid) {
+                localStorage.setItem(AUTH_STORAGE_KEY, 'true');
+                pinMessage.textContent = '';
+                showAppContent();
+                await loadPlayers();
+                const matchId = new URLSearchParams(window.location.search).get('matchId');
+                if (matchId) {
+                    loadMatchForEdit(matchId);
+                }
+            } else {
+                pinMessage.textContent = 'Incorrect PIN. Please try again.';
+                pinInput.value = '';
+                pinInput.focus();
+            }
+        }
+
+        document.getElementById('unlockPinBtn').addEventListener('click', handlePinSubmit);
+        document.getElementById('pinInput').addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                handlePinSubmit();
+            }
+        });
+
+        // Load players from `players` table and populate both checkbox lists
+        async function loadPlayers() {
+            try {
+                const { data, error } = await supabaseClient.from('players').select('*').order('id', { ascending: true });
+                if (error) {
+                    console.error('Error loading players:', error);
+                    return;
+                }
+
+                const players = Array.isArray(data) ? data : [];
+                // Sort players alphabetically by display name
+                players.sort((a, b) => {
+                    const nameA = (a.name || a.player_name || a.full_name || `${a.first_name || ''} ${a.last_name || ''}`.trim() || (`Player ${a.id}`)).toString().toLowerCase();
+                    const nameB = (b.name || b.player_name || b.full_name || `${b.first_name || ''} ${b.last_name || ''}`.trim() || (`Player ${b.id}`)).toString().toLowerCase();
+                    return nameA.localeCompare(nameB);
+                });
+                const homeContainer = document.getElementById('homeSquad');
+                const awayContainer = document.getElementById('awaySquad');
+                homeContainer.innerHTML = '';
+                awayContainer.innerHTML = '';
+
+                players.forEach(p => {
+                    const display = p.name || p.player_name || p.full_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || (`Player ${p.id}`);
+
+                    const homeItem = document.createElement('div');
+                    homeItem.className = 'player-item';
+                    const homeCheckbox = document.createElement('input');
+                    homeCheckbox.type = 'checkbox';
+                    homeCheckbox.value = p.id;
+                    homeCheckbox.id = `home-player-${p.id}`;
+                    homeCheckbox.dataset.playerId = p.id;
+                    const homeLabel = document.createElement('label');
+                    homeLabel.htmlFor = homeCheckbox.id;
+                    homeLabel.textContent = display;
+                    homeItem.appendChild(homeCheckbox);
+                    homeItem.appendChild(homeLabel);
+
+                    const awayItem = document.createElement('div');
+                    awayItem.className = 'player-item';
+                    const awayCheckbox = document.createElement('input');
+                    awayCheckbox.type = 'checkbox';
+                    awayCheckbox.value = p.id;
+                    awayCheckbox.id = `away-player-${p.id}`;
+                    awayCheckbox.dataset.playerId = p.id;
+                    const awayLabel = document.createElement('label');
+                    awayLabel.htmlFor = awayCheckbox.id;
+                    awayLabel.textContent = display;
+                    awayItem.appendChild(awayCheckbox);
+                    awayItem.appendChild(awayLabel);
+
+                    // When either checkbox changes, toggle the counterpart disabled state
+                    homeCheckbox.addEventListener('change', () => handleMutualExclusion(p.id, 'home'));
+                    awayCheckbox.addEventListener('change', () => handleMutualExclusion(p.id, 'away'));
+
+                    homeContainer.appendChild(homeItem);
+                    awayContainer.appendChild(awayItem);
+                });
+            } catch (e) {
+                console.error('Exception loading players', e);
+            }
+        }
+
+        function getSelectedIdsFromList(containerId) {
+            const container = document.getElementById(containerId);
+            return Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(i => i.value);
+        }
+
+        function handleMutualExclusion(playerId, sideChanged) {
+            const homeCheckbox = document.querySelector(`#home-player-${playerId}`);
+            const awayCheckbox = document.querySelector(`#away-player-${playerId}`);
+
+            if (!homeCheckbox || !awayCheckbox) return;
+
+            if (sideChanged === 'home') {
+                if (homeCheckbox.checked) {
+                    awayCheckbox.checked = false;
+                    awayCheckbox.disabled = true;
+                    awayCheckbox.closest('.player-item')?.classList.add('disabled');
+                } else {
+                    awayCheckbox.disabled = false;
+                    awayCheckbox.closest('.player-item')?.classList.remove('disabled');
+                }
+            } else {
+                if (awayCheckbox.checked) {
+                    homeCheckbox.checked = false;
+                    homeCheckbox.disabled = true;
+                    homeCheckbox.closest('.player-item')?.classList.add('disabled');
+                } else {
+                    homeCheckbox.disabled = false;
+                    homeCheckbox.closest('.player-item')?.classList.remove('disabled');
+                }
+            }
+        }
+
+        async function loadMatchForEdit(matchId) {
+            if (!matchId) return;
+
+            const { data, error } = await supabaseClient
+                .from('matches')
+                .select('id, home_team, away_team')
+                .eq('id', matchId)
+                .single();
+
+            if (error) {
+                console.error('Error loading match for edit:', error);
+                return;
+            }
+
+            if (!data) return;
+
+            document.getElementById('homeName').value = data.home_team || '';
+            document.getElementById('awayName').value = data.away_team || '';
+
+            const { data: playerLinks, error: playerLinksError } = await supabaseClient
+                .from('player_matches')
+                .select('player_id, playing_side')
+                .eq('match_id', matchId);
+
+            if (playerLinksError) {
+                console.error('Error loading player links:', playerLinksError);
+                return;
+            }
+
+            const selectedPlayerIds = new Map();
+            (playerLinks || []).forEach((link) => {
+                const playerId = Number(link.player_id);
+                if (Number.isFinite(playerId) && playerId > 0) {
+                    selectedPlayerIds.set(playerId, link.playing_side || 'home');
+                }
+            });
+
+            document.querySelectorAll('#homeSquad input[type="checkbox"], #awaySquad input[type="checkbox"]').forEach((checkbox) => {
+                const playerId = Number(checkbox.dataset.playerId);
+                const side = selectedPlayerIds.get(playerId);
+                const isHomeCheckbox = checkbox.id.startsWith('home-player-');
+                const isSelected = Boolean(side);
+
+                checkbox.checked = isSelected && ((isHomeCheckbox && side === 'home') || (!isHomeCheckbox && side === 'away'));
+
+                if (isSelected) {
+                    const otherSide = isHomeCheckbox ? 'away' : 'home';
+                    const counterpart = document.querySelector(`#${otherSide}-player-${playerId}`);
+                    if (counterpart) {
+                        counterpart.checked = false;
+                        counterpart.disabled = !checkbox.checked;
+                        counterpart.closest('.player-item')?.classList.toggle('disabled', !checkbox.checked);
+                    }
+                }
+
+                if (!isSelected) {
+                    checkbox.disabled = false;
+                    checkbox.closest('.player-item')?.classList.remove('disabled');
+                }
+            });
+        }
+
+        document.getElementById('matchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const homeName = document.getElementById('homeName').value.trim();
+            const awayName = document.getElementById('awayName').value.trim();
+            const homeSquad = getSelectedIdsFromList('homeSquad');
+            const awaySquad = getSelectedIdsFromList('awaySquad');
+
+            if (!homeName || !awayName) {
+                alert('Please enter both team names.');
+                return;
+            }
+
+            const matchId = new URLSearchParams(window.location.search).get('matchId');
+            const selectedPlayerRows = [
+                ...homeSquad.map(playerId => ({
+                    match_id: Number(matchId || 0),
+                    player_id: Number(playerId),
+                    playing_side: 'home'
+                })).filter(row => Number.isFinite(row.player_id) && row.player_id > 0),
+                ...awaySquad.map(playerId => ({
+                    match_id: Number(matchId || 0),
+                    player_id: Number(playerId),
+                    playing_side: 'away'
+                })).filter(row => Number.isFinite(row.player_id) && row.player_id > 0)
+            ];
+
+            try {
+                if (matchId) {
+                    const { error: matchError } = await supabaseClient
+                        .from('matches')
+                        .update({
+                            home_team: homeName,
+                            away_team: awayName
+                        })
+                        .eq('id', matchId);
+
+                    if (matchError) {
+                        console.error('Error updating match:', matchError);
+                        alert('Failed to update match. Check console for details.');
+                        return;
+                    }
+
+                    const { error: deleteError } = await supabaseClient
+                        .from('player_matches')
+                        .delete()
+                        .eq('match_id', matchId);
+
+                    if (deleteError) {
+                        console.error('Error updating player links:', deleteError);
+                        alert('Match updated, but player links could not be refreshed.');
+                        return;
+                    }
+
+                    if (selectedPlayerRows.length > 0) {
+                        const playerMatchRows = selectedPlayerRows.map(row => ({
+                            match_id: matchId,
+                            player_id: row.player_id,
+                            playing_side: row.playing_side
+                        }));
+
+                        const { error: playerMatchError } = await supabaseClient
+                            .from('player_matches')
+                            .insert(playerMatchRows);
+
+                        if (playerMatchError) {
+                            console.error('Error saving player match records:', playerMatchError);
+                            alert('Match updated, but one or more player links could not be saved.');
+                            return;
+                        }
+                    }
+
+                    alert('Match updated');
+                    window.location.href = 'incomplete-matches.html';
+                    return;
+                }
+
+                const { data: matchData, error: matchError } = await supabaseClient.from('matches').insert([{
+                    home_team: homeName,
+                    away_team: awayName,
+                    home_score: 0,
+                    away_score: 0,
+                    is_complete_match: false
+                }]).select().single();
+
+                if (matchError) {
+                    console.error('Error creating match:', matchError);
+                    alert('Failed to create match. Check console for details.');
+                    return;
+                }
+
+                if (selectedPlayerRows.length > 0) {
+                    const playerMatchRows = selectedPlayerRows.map(row => ({
+                        match_id: matchData.id,
+                        player_id: row.player_id,
+                        playing_side: row.playing_side
+                    }));
+
+                    const { error: playerMatchError } = await supabaseClient
+                        .from('player_matches')
+                        .insert(playerMatchRows);
+
+                    if (playerMatchError) {
+                        console.error('Error creating player match records:', playerMatchError);
+                        alert('Match created, but one or more player links could not be saved.');
+                        return;
+                    }
+                }
+
+                alert('Match created');
+                window.location.href = 'index.html';
+            } catch (err) {
+                console.error(err);
+                alert('Unexpected error creating match');
+            }
+        });
+
+        // Initialize
+        const matchId = new URLSearchParams(window.location.search).get('matchId');
+        const pageTitle = document.querySelector('h1');
+        const pageSubtitle = document.querySelector('.subtitle');
+        const submitButton = document.querySelector('#matchForm button[type="submit"]');
+
+        if (matchId) {
+            if (pageTitle) pageTitle.textContent = 'Edit Match';
+            if (pageSubtitle) pageSubtitle.textContent = 'Update team names and selected players for this incomplete match.';
+            if (submitButton) submitButton.textContent = 'Update Match';
+        }
+
+        function initializePage() {
+            if (localStorage.getItem(AUTH_STORAGE_KEY) === 'true') {
+                showAppContent();
+                loadPlayers().then(() => {
+                    if (matchId) {
+                        loadMatchForEdit(matchId);
+                    }
+                });
+                return;
+            }
+
+            showAuthScreen();
+        }
+
+        initializePage();
+    </script>
+</body>
+
+</html>

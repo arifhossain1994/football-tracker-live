@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Incomplete Matches</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg: #0b0e14;
+            --panel: #121922;
+            --panel-alt: #171f2b;
+            --border: #2a3443;
+            --text: #f3f6fb;
+            --muted: #a7b3c6;
+            --blue: #1f6feb;
+            --green: #2ea043;
+            --warning: #f0a500;
+            --danger: #ef4444;
+            --shadow: rgba(0, 0, 0, 0.22);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            padding: 32px 18px;
+            background: radial-gradient(circle at top, #172235 0%, var(--bg) 45%);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        .page {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .topbar {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 64px;
+            margin-bottom: 10px;
+            width: 100%;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: clamp(1.8rem, 2.5vw, 2.8rem);
+        }
+
+        .subtitle {
+            margin: 8px 0 0;
+            color: var(--muted);
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        /* place actions on the right of the topbar for larger screens */
+        .topbar .actions {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .home-link {
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(18, 25, 34, 0.96);
+            color: var(--text);
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-decoration: none;
+            line-height: 1.2;
+            z-index: 2;
+        }
+
+        .home-link:hover,
+        .home-link:focus-visible {
+            border-color: #58a6ff;
+            outline: none;
+        }
+
+        .btn {
+            appearance: none;
+            background: #21262d;
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 12px 8px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            width: auto;
+            transition: transform 0.1s;
+        }
+
+        .btn:active {
+            transform: scale(0.96);
+            opacity: 0.8;
+        }
+
+        .btn-blue {
+            background: var(--blue);
+            border: none;
+            color: #fff;
+        }
+
+        .panel {
+            background: rgba(18, 25, 34, 0.92);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: 0 12px 30px var(--shadow);
+            overflow: hidden;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        /* Tiles grid (replaces table) */
+        .tiles-wrap {
+            padding: 12px;
+        }
+
+        .tiles-grid {
+            display: grid;
+            gap: 12px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            align-items: start;
+        }
+
+        .match-card {
+            background: rgba(18, 25, 34, 0.96);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 120px;
+        }
+
+        .match-teams {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .team-name {
+            font-weight: 800;
+            font-size: 1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .team-name.home-team {
+            color: #1f6feb;
+        }
+
+        .team-name.away-team {
+            color: #da3633;
+        }
+
+        .match-score {
+            font-weight: 900;
+            font-size: 1.1rem;
+            color: var(--text);
+            margin: 0 8px;
+            flex-shrink: 0;
+        }
+
+        .match-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 900px) {
+            .tiles-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 560px) {
+            .tiles-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        th,
+        td {
+            padding: 20px 18px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        th {
+            background: rgba(23, 31, 43, 0.9);
+            color: var(--muted);
+            font-size: 0.8rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .status-tag {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            background: rgba(240, 165, 0, 0.16);
+            color: var(--warning);
+            border: 1px solid rgba(240, 165, 0, 0.3);
+        }
+
+        .action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .action-btn {
+            appearance: none;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 7px 10px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            color: var(--text);
+            background: rgba(31, 111, 235, 0.12);
+            cursor: pointer;
+            transition: transform 0.12s ease, opacity 0.12s ease;
+        }
+
+        .action-btn:hover,
+        .action-btn:focus-visible {
+            transform: translateY(-1px);
+        }
+
+        .action-btn.edit {
+            background: rgba(31, 111, 235, 0.2);
+            border-color: rgba(31, 111, 235, 0.5);
+        }
+
+        .action-btn.complete {
+            background: rgba(46, 160, 67, 0.18);
+            border-color: rgba(46, 160, 67, 0.5);
+        }
+
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 9, 15, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 1000;
+        }
+
+        .modal-backdrop.visible {
+            display: flex;
+        }
+
+        .modal-card {
+            width: min(100%, 620px);
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+            padding: 20px;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .modal-title {
+            margin: 0;
+            font-size: 1.4rem;
+        }
+
+        .close-button {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            width: 34px;
+            height: 34px;
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        .score-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .field-group {
+            display: grid;
+            gap: 8px;
+        }
+
+        .field-label {
+            color: var(--muted);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .field-group input,
+        .field-group select {
+            width: 100%;
+            background: rgba(11, 14, 20, 0.8);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            padding: 10px 12px;
+            font: inherit;
+        }
+
+        .scorer-list {
+            display: grid;
+            gap: 8px;
+            margin-top: 8px;
+            max-height: 220px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .scorer-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--text);
+            cursor: pointer;
+        }
+
+        .scorer-option input {
+            width: 16px;
+            height: 16px;
+            margin: 0;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .empty-state {
+            padding: 30px 20px;
+            text-align: center;
+            color: var(--muted);
+        }
+
+        .error-state {
+            padding: 30px 20px;
+            color: #ffd1d1;
+            text-align: center;
+        }
+
+        .auth-overlay {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgb(13 17 23 / 92%);
+            z-index: 1000;
+        }
+
+        .auth-card {
+            width: min(100%, 320px);
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 12px 40px rgb(0 0 0 / 30%);
+        }
+
+        .auth-card h2 {
+            margin-bottom: 8px;
+            font-size: 1.2rem;
+        }
+
+        .auth-card p {
+            color: #8b949e;
+            margin-bottom: 14px;
+            font-size: 0.95rem;
+        }
+
+        .pin-input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: #0d1117;
+            color: var(--text);
+            text-align: center;
+            font-size: 1.1rem;
+            letter-spacing: 0.2rem;
+            margin-bottom: 10px;
+        }
+
+        .auth-message {
+            margin-top: 10px;
+            color: #f85149;
+            font-size: 0.9rem;
+            min-height: 1.2rem;
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 20px 12px;
+            }
+
+            .topbar {
+                display: grid;
+                grid-template-columns: 1fr auto 1fr;
+                align-items: center;
+                min-height: auto;
+                gap: 12px;
+                padding-top: 4px;
+                position: relative;
+            }
+
+            .home-link {
+                position: static;
+                transform: none;
+                justify-self: start;
+            }
+
+            h1 {
+                margin: 0;
+                text-align: center;
+                width: 100%;
+            }
+
+            .topbar .actions {
+                position: static;
+                transform: none;
+                width: auto;
+                display: flex;
+                justify-self: end;
+            }
+
+            table {
+                font-size: 0.95rem;
+            }
+
+            th,
+            td {
+                padding: 10px 8px;
+            }
+
+            .actions .btn {
+                width: 100%;
+            }
+
+            .action-buttons {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 8px;
+                justify-content: stretch;
+            }
+
+            .action-btn {
+                width: 100%;
+                flex: 1 1 0;
+                min-width: 0;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="authOverlay" class="auth-overlay">
+        <div class="auth-card">
+            <h2>Access required</h2>
+            <p>Enter the 4-digit PIN to unlock incomplete matches.</p>
+            <input id="pinInput" class="pin-input" type="password" inputmode="numeric" maxlength="4"
+                autocomplete="one-time-code" />
+            <button id="unlockPinBtn" class="btn btn-blue" type="button">Unlock</button>
+            <p id="pinMessage" class="auth-message" aria-live="polite"></p>
+        </div>
+    </div>
+
+    <div id="appContent" class="page" style="display:none;">
+        <div class="topbar">
+            <a class="home-link" href="index.html">&#8962; Home</a>
+            <h1>Incomplete Matches</h1>
+            <div class="actions">
+                <button class="btn" id="refreshMatches" type="button">Refresh</button>
+            </div>
+        </div>
+        <p class="subtitle">Open matches still marked as incomplete.</p>
+        <br>
+
+        <section class="panel" aria-live="polite">
+            <div class="table-wrap">
+                <div class="tiles-wrap">
+                    <div class="tiles-grid" id="matchesTiles"></div>
+                </div>
+            </div>
+            <div id="emptyState" class="empty-state" hidden>No incomplete matches found.</div>
+            <div id="errorState" class="error-state" hidden>Unable to load incomplete matches right now.</div>
+        </section>
+    </div>
+
+    <div class="modal-backdrop" id="completeMatchModal" aria-hidden="true">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="completeMatchTitle">
+            <div class="modal-header">
+                <h2 class="modal-title" id="completeMatchTitle">Complete Match</h2>
+                <button class="close-button" type="button" id="closeCompleteModal" aria-label="Close">×</button>
+            </div>
+
+            <div class="score-grid">
+                <div class="field-group">
+                    <label class="field-label" for="homeGoalsInput">Home goals</label>
+                    <input id="homeGoalsInput" type="number" min="0" step="1" value="0" />
+                    <div id="homeScorerList" class="scorer-list" aria-live="polite"></div>
+                </div>
+
+                <div class="field-group">
+                    <label class="field-label" for="awayGoalsInput">Away goals</label>
+                    <input id="awayGoalsInput" type="number" min="0" step="1" value="0" />
+                    <div id="awayScorerList" class="scorer-list" aria-live="polite"></div>
+                </div>
+            </div>
+            <div class="field-label" style="margin-top: 8px;">Select the players who scored. The number of checked
+                players must match the goals total for each team.</div>
+
+            <div class="modal-actions">
+                <button class="btn" type="button" id="cancelCompleteMatch">Cancel</button>
+                <button class="btn" type="button" id="saveCompleteMatch">Save Match</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://jiwzpkshvlapynluuvnu.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imppd3pwa3NodmxhcHlubHV1dm51Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTMyODMsImV4cCI6MjEwMDMyOTI4M30.cDYToT-IvI1dzD6VWsxAhZ5HMDeFlwes_4X9PKlzZ_g';
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const ACCESS_PIN_NAME = 'incomplete_matches';
+        const AUTH_STORAGE_KEY = 'incompleteMatchesAuth';
+
+        const tilesGrid = document.getElementById('matchesTiles');
+        const emptyState = document.getElementById('emptyState');
+        const errorState = document.getElementById('errorState');
+
+        async function hashPin(pin) {
+            const normalizedPin = String(pin ?? '').trim();
+            const encoder = new TextEncoder();
+            const data = encoder.encode(normalizedPin);
+            const digest = await crypto.subtle.digest('SHA-256', data);
+            return Array.from(new Uint8Array(digest))
+                .map(byte => byte.toString(16).padStart(2, '0'))
+                .join('')
+                .toLowerCase();
+        }
+
+        async function validatePinForPage(pageName, submittedPin) {
+            const normalizedPin = String(submittedPin ?? '').trim();
+            if (!normalizedPin) return false;
+
+            const pinHash = await hashPin(normalizedPin);
+            const { data, error } = await supabaseClient
+                .from('app_access_pins')
+                .select('id, pin_hash')
+                .eq('name', String(pageName));
+
+            if (error) {
+                console.error('Error validating page PIN:', error);
+                return false;
+            }
+
+            const rows = Array.isArray(data) ? data : [];
+            const normalizedMatches = rows.some(row => {
+                const storedHash = String(row?.pin_hash ?? '').trim();
+                return storedHash.toLowerCase() === pinHash.toLowerCase();
+            });
+
+            if (!normalizedMatches) {
+                console.log('PIN mismatch debug:', {
+                    pageName,
+                    submittedPin,
+                    pinHash,
+                    rows: rows.map(row => ({ id: row.id, pin_hash: row.pin_hash }))
+                });
+            }
+
+            return normalizedMatches;
+        }
+
+        async function handlePinSubmit() {
+            const pinInput = document.getElementById('pinInput');
+            const pinMessage = document.getElementById('pinMessage');
+            const authOverlay = document.getElementById('authOverlay');
+            const appContent = document.getElementById('appContent');
+            const enteredPin = (pinInput.value || '').trim();
+
+            if (!enteredPin) {
+                pinMessage.textContent = 'Please enter the PIN.';
+                return;
+            }
+
+            if (!/^\d{4}$/.test(enteredPin)) {
+                pinMessage.textContent = 'PIN must be 4 digits.';
+                pinInput.value = '';
+                pinInput.focus();
+                return;
+            }
+
+            const isValid = await validatePinForPage(ACCESS_PIN_NAME, enteredPin);
+
+            if (isValid) {
+                localStorage.setItem(AUTH_STORAGE_KEY, 'granted');
+                authOverlay.style.display = 'none';
+                appContent.style.display = 'block';
+                pinMessage.textContent = '';
+                loadIncompleteMatches();
+                return;
+            }
+
+            pinMessage.textContent = 'Incorrect PIN. Please try again.';
+            pinInput.value = '';
+            pinInput.focus();
+        }
+
+        window.handlePinSubmit = handlePinSubmit;
+
+        async function ensureUnlocked() {
+            const authOverlay = document.getElementById('authOverlay');
+            const appContent = document.getElementById('appContent');
+            const wasGranted = localStorage.getItem(AUTH_STORAGE_KEY) === 'granted';
+
+            if (wasGranted) {
+                authOverlay.style.display = 'none';
+                appContent.style.display = 'block';
+                return true;
+            }
+
+            authOverlay.style.display = 'flex';
+            appContent.style.display = 'none';
+            document.getElementById('pinInput').focus();
+            return false;
+        }
+
+        document.getElementById('unlockPinBtn').addEventListener('click', handlePinSubmit);
+
+        document.getElementById('pinInput').addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                handlePinSubmit();
+            }
+        });
+
+        window.addEventListener('pageshow', async () => {
+            if (await ensureUnlocked()) {
+                loadIncompleteMatches();
+            }
+        });
+
+        function formatDate(dateValue) {
+            if (!dateValue) return '—';
+            const date = new Date(dateValue);
+            if (Number.isNaN(date.getTime())) return '—';
+            return date.toLocaleString([], {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+            });
+        }
+
+        function renderMatches(matches) {
+            tilesGrid.innerHTML = '';
+            emptyState.hidden = matches.length !== 0;
+            errorState.hidden = true;
+
+            if (!matches.length) return;
+
+            matches.forEach((match, index) => {
+                const card = document.createElement('div');
+                card.className = 'match-card';
+                card.dataset.matchId = match.id;
+                const home = match.home_team || 'Unknown';
+                const away = match.away_team || 'Unknown';
+                const score = `${Number(match.home_score ?? 0)} - ${Number(match.away_score ?? 0)}`;
+
+                card.innerHTML = `
+                    <div class="match-teams">
+                        <div class="team-name home-team">${home}</div>
+                        <div class="match-score">${score}</div>
+                        <div class="team-name away-team" style="text-align:right">${away}</div>
+                    </div>
+                    <div class="match-meta">
+                        <div class="scheduled">${formatDate(match.scheduled_time)}</div>
+                        <div class="status"><span class="status-tag">Incomplete</span></div>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="action-btn edit" type="button" data-action="edit" data-match-id="${match.id}">Edit</button>
+                        <button class="action-btn complete" type="button" data-action="complete" data-match-id="${match.id}">Complete</button>
+                    </div>
+                `;
+
+                tilesGrid.appendChild(card);
+            });
+        }
+
+        let selectedMatchForCompletion = null;
+
+        function openCompleteMatchModal(matchId) {
+            selectedMatchForCompletion = matchId;
+            document.getElementById('completeMatchModal').classList.add('visible');
+            document.getElementById('completeMatchModal').setAttribute('aria-hidden', 'false');
+            document.getElementById('homeGoalsInput').value = '0';
+            document.getElementById('awayGoalsInput').value = '0';
+            document.getElementById('homeScorerList').innerHTML = '';
+            document.getElementById('awayScorerList').innerHTML = '';
+            prepareCompletionModal(matchId);
+            document.getElementById('homeGoalsInput').focus();
+        }
+
+        function closeCompleteMatchModal() {
+            selectedMatchForCompletion = null;
+            document.getElementById('completeMatchModal').classList.remove('visible');
+            document.getElementById('completeMatchModal').setAttribute('aria-hidden', 'true');
+            document.getElementById('homeGoalsInput').value = 0;
+            document.getElementById('awayGoalsInput').value = 0;
+            document.getElementById('homeScorerList').innerHTML = '';
+            document.getElementById('awayScorerList').innerHTML = '';
+        }
+
+        function getPlayerDisplayName(player) {
+            if (!player) return 'Unknown player';
+            const fallback = [
+                player.player_name,
+                player.name,
+                player.full_name,
+                [player.first_name, player.last_name].filter(Boolean).join(' ')
+            ].find(value => value && value.toString().trim());
+            return fallback || `Player ${player.id}`;
+        }
+
+        async function loadPlayersForMatch(matchId) {
+            try {
+                const [{ data: homeLinks, error: homeLinksError }, { data: awayLinks, error: awayLinksError }] = await Promise.all([
+                    supabaseClient
+                        .from('player_matches')
+                        .select('player_id')
+                        .eq('match_id', matchId)
+                        .eq('playing_side', 'home'),
+                    supabaseClient
+                        .from('player_matches')
+                        .select('player_id')
+                        .eq('match_id', matchId)
+                        .eq('playing_side', 'away')
+                ]);
+
+                if (homeLinksError) {
+                    console.error('Error loading home player links:', homeLinksError);
+                }
+                if (awayLinksError) {
+                    console.error('Error loading away player links:', awayLinksError);
+                }
+
+                const homePlayerIds = [...new Set((homeLinks || []).map(link => Number(link.player_id)).filter(Number.isFinite))];
+                const awayPlayerIds = [...new Set((awayLinks || []).map(link => Number(link.player_id)).filter(Number.isFinite))];
+
+                const [homePlayers, awayPlayers] = await Promise.all([
+                    homePlayerIds.length
+                        ? supabaseClient
+                            .from('players')
+                            .select('id, player_name')
+                            .in('id', homePlayerIds)
+                            .then(({ data, error }) => {
+                                if (error) {
+                                    console.error('Error loading home players:', error);
+                                    return [];
+                                }
+                                return (data || []).sort((a, b) => getPlayerDisplayName(a).localeCompare(getPlayerDisplayName(b)));
+                            })
+                        : Promise.resolve([]),
+                    awayPlayerIds.length
+                        ? supabaseClient
+                            .from('players')
+                            .select('id, player_name')
+                            .in('id', awayPlayerIds)
+                            .then(({ data, error }) => {
+                                if (error) {
+                                    console.error('Error loading away players:', error);
+                                    return [];
+                                }
+                                return (data || []).sort((a, b) => getPlayerDisplayName(a).localeCompare(getPlayerDisplayName(b)));
+                            })
+                        : Promise.resolve([])
+                ]);
+
+                return { home: homePlayers, away: awayPlayers };
+            } catch (err) {
+                console.error('Exception loading match players:', err);
+                return { home: [], away: [] };
+            }
+        }
+
+        let currentCompletionPlayers = { home: [], away: [] };
+
+        function renderScorerGoalSelectors(team, players) {
+            const list = document.getElementById(`${team}ScorerList`);
+            if (!list) return;
+
+            list.innerHTML = '';
+
+            if (!players.length) {
+                const empty = document.createElement('div');
+                empty.style.color = 'var(--muted)';
+                empty.textContent = 'No players available for this team.';
+                list.appendChild(empty);
+                return;
+            }
+
+            players.forEach((player) => {
+                const row = document.createElement('div');
+                row.className = 'scorer-option';
+
+                const text = document.createElement('span');
+                text.textContent = getPlayerDisplayName(player);
+                text.style.flex = '1';
+
+                const selector = document.createElement('select');
+                selector.setAttribute('aria-label', `${getPlayerDisplayName(player)} goals`);
+                selector.dataset.playerId = String(player.id);
+                selector.name = `${team}-scorer-goal-count`;
+
+                for (let value = 0; value <= 10; value += 1) {
+                    const option = document.createElement('option');
+                    option.value = String(value);
+                    option.textContent = String(value);
+                    selector.appendChild(option);
+                }
+
+                selector.value = '0';
+
+                selector.addEventListener('change', () => {
+                    const maxGoals = Number(document.getElementById(`${team}GoalsInput`).value || 0);
+                    const selectedTotal = getSelectedScorerCounts(team).total;
+                    if (selectedTotal > maxGoals) {
+                        selector.value = '0';
+                        alert(`You cannot assign more than ${maxGoals} goals to ${team}.`);
+                    }
+                });
+
+                row.appendChild(text);
+                row.appendChild(selector);
+                list.appendChild(row);
+            });
+        }
+
+        function getSelectedScorerCounts(teamKey) {
+            const list = document.getElementById(`${teamKey}ScorerList`);
+            if (!list) return { total: 0, entries: {} };
+
+            const entries = {};
+            let total = 0;
+
+            list.querySelectorAll('select[data-player-id]').forEach((select) => {
+                const playerId = String(select.dataset.playerId);
+                const count = Number(select.value || 0);
+                entries[playerId] = count;
+                total += count;
+            });
+
+            return { total, entries };
+        }
+
+        async function prepareCompletionModal(matchId) {
+            const playersBySide = await loadPlayersForMatch(matchId);
+            currentCompletionPlayers = playersBySide;
+            const homeGoalsInput = document.getElementById('homeGoalsInput');
+            const awayGoalsInput = document.getElementById('awayGoalsInput');
+
+            const refreshScorerLists = () => {
+                renderScorerGoalSelectors('home', playersBySide.home || []);
+                renderScorerGoalSelectors('away', playersBySide.away || []);
+            };
+
+            homeGoalsInput.oninput = () => {
+                const value = Math.max(0, Number(homeGoalsInput.value || 0));
+                if (Number.isFinite(value)) {
+                    homeGoalsInput.value = value;
+                }
+            };
+            awayGoalsInput.oninput = () => {
+                const value = Math.max(0, Number(awayGoalsInput.value || 0));
+                if (Number.isFinite(value)) {
+                    awayGoalsInput.value = value;
+                }
+            };
+            refreshScorerLists();
+        }
+
+        tilesGrid.addEventListener('click', async (event) => {
+            const button = event.target.closest('button[data-action]');
+            if (!button) return;
+
+            const matchId = button.dataset.matchId;
+            if (!matchId) return;
+
+            if (button.dataset.action === 'edit') {
+                window.location.href = `matchForm.html?matchId=${encodeURIComponent(matchId)}`;
+                return;
+            }
+
+            if (button.dataset.action === 'complete') {
+                openCompleteMatchModal(matchId);
+            }
+        });
+
+        document.getElementById('cancelCompleteMatch').addEventListener('click', closeCompleteMatchModal);
+        document.getElementById('closeCompleteModal').addEventListener('click', closeCompleteMatchModal);
+        document.getElementById('completeMatchModal').addEventListener('click', (event) => {
+            if (event.target.id === 'completeMatchModal') {
+                closeCompleteMatchModal();
+            }
+        });
+
+        document.getElementById('saveCompleteMatch').addEventListener('click', async () => {
+            if (!selectedMatchForCompletion) return;
+
+            const homeGoals = Number(document.getElementById('homeGoalsInput').value || 0);
+            const awayGoals = Number(document.getElementById('awayGoalsInput').value || 0);
+
+            if (!Number.isFinite(homeGoals) || !Number.isFinite(awayGoals) || homeGoals < 0 || awayGoals < 0) {
+                alert('Please enter valid goal totals for both teams.');
+                return;
+            }
+
+            const homeScorerCounts = getSelectedScorerCounts('home');
+            const awayScorerCounts = getSelectedScorerCounts('away');
+
+            if (homeScorerCounts.total !== homeGoals || awayScorerCounts.total !== awayGoals) {
+                alert('The total goals assigned to each team must match the team goal totals.');
+                return;
+            }
+
+            const homeScorerEntries = Object.entries(homeScorerCounts.entries).filter(([, count]) => Number(count) > 0);
+            const awayScorerEntries = Object.entries(awayScorerCounts.entries).filter(([, count]) => Number(count) > 0);
+
+            try {
+                const { error: matchError } = await supabaseClient
+                    .from('matches')
+                    .update({
+                        home_score: homeGoals,
+                        away_score: awayGoals,
+                        is_complete_match: true
+                    })
+                    .eq('id', selectedMatchForCompletion);
+
+                if (matchError) {
+                    console.error('Error completing match:', matchError);
+                    alert('Unable to save the final match score.');
+                    return;
+                }
+
+                const combinedPlayers = [...(currentCompletionPlayers.home || []), ...(currentCompletionPlayers.away || [])];
+                const playerMap = new Map((combinedPlayers || []).map(player => [String(player.id), getPlayerDisplayName(player)]));
+
+                const goalEvents = [
+                    ...homeScorerEntries.flatMap(([playerId, count]) => Array.from({ length: Number(count) }, () => ({
+                        match_id: selectedMatchForCompletion,
+                        player_id: Number(playerId),
+                        team: 'home',
+                        event_type: 'goal',
+                        player_name: playerMap.get(String(playerId)) || 'Unknown player',
+                        match_time_sec: 0
+                    }))),
+                    ...awayScorerEntries.flatMap(([playerId, count]) => Array.from({ length: Number(count) }, () => ({
+                        match_id: selectedMatchForCompletion,
+                        player_id: Number(playerId),
+                        team: 'away',
+                        event_type: 'goal',
+                        player_name: playerMap.get(String(playerId)) || 'Unknown player',
+                        match_time_sec: 0
+                    })))
+                ];
+
+                const { error: eventsError } = await supabaseClient
+                    .from('match_events')
+                    .insert(goalEvents);
+
+                if (eventsError) {
+                    console.error('Error saving goal scorers:', eventsError);
+                    alert('The match score was saved, but one or more goal scorers could not be recorded.');
+                    closeCompleteMatchModal();
+                    await loadIncompleteMatches();
+                    return;
+                }
+
+                closeCompleteMatchModal();
+                await loadIncompleteMatches();
+            } catch (err) {
+                console.error('Exception completing match:', err);
+                alert('Unexpected error while completing this match.');
+            }
+        });
+
+        async function loadIncompleteMatches() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('matches')
+                    .select('id, home_team, away_team, home_score, away_score, scheduled_time, is_complete_match')
+                    .eq('is_complete_match', false)
+                    .order('scheduled_time', { ascending: true });
+
+                if (error) {
+                    console.error('Error loading incomplete matches:', error);
+                    emptyState.hidden = true;
+                    errorState.hidden = false;
+                    return;
+                }
+
+                renderMatches(Array.isArray(data) ? data : []);
+            } catch (err) {
+                console.error('Exception loading incomplete matches:', err);
+                emptyState.hidden = true;
+                errorState.hidden = false;
+            }
+        }
+
+        document.getElementById('refreshMatches').addEventListener('click', loadIncompleteMatches);
+
+        ensureUnlocked().then((unlocked) => {
+            if (unlocked) {
+                loadIncompleteMatches();
+            }
+        });
+    </script>
+</body>
+
+</html>

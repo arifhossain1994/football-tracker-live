@@ -318,19 +318,20 @@
             }
 
             .topbar {
-                min-height: auto;
-                justify-content: center;
+                display: flex;
+                flex-direction: column;
                 align-items: center;
-                gap: 12px;
-                padding-top: 4px;
+                justify-content: flex-start;
+                min-height: auto;
+                gap: 10px;
+                padding-top: 0;
                 position: relative;
             }
 
             .home-link {
-                position: absolute;
-                left: 0;
-                top: 50%;
-                transform: translateY(-50%);
+                position: static;
+                transform: none;
+                align-self: flex-start;
                 margin-bottom: 0;
             }
 
@@ -338,6 +339,8 @@
                 text-align: center;
                 font-size: clamp(1.6rem, 7vw, 2.2rem);
                 width: 100%;
+                line-height: 1.1;
+                margin: 0;
             }
 
             .subtitle {
@@ -587,7 +590,7 @@
 
         async function loadStats() {
             const [{ data: matches, error: matchesError }, { data: events, error: eventsError }] = await Promise.all([
-                supabaseClient.from('matches').select('id, home_team, away_team, home_score, away_score, created_at'),
+                supabaseClient.from('matches').select('id, home_team, away_team, home_score, away_score, created_at, is_complete_match').eq('is_complete_match', true),
                 supabaseClient.from('match_events').select('id, match_id, event_type, team, player_name, match_time_sec')
             ]);
 
@@ -600,7 +603,8 @@
             }
 
             currentState.matches = matches || [];
-            currentState.events = events || [];
+            const completedMatchIds = new Set((currentState.matches || []).map(match => match.id));
+            currentState.events = (events || []).filter(event => completedMatchIds.has(event.match_id));
 
             const totalGames = currentState.matches.length;
             const totalGoals = (currentState.events || []).filter(event => event.event_type === 'goal').length;
