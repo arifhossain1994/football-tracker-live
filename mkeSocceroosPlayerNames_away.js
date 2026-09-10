@@ -15,5 +15,5 @@ const mkeSocceroosPlayerNames_away = [
   "Alvie",
   "Martuza",
   "Wasif",
-  "Galib (Manager)",
+  "Galib",
 ];
