@@ -83,7 +83,7 @@
 
         .tiles {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 18px;
             margin-top: 18px
         }
@@ -107,6 +107,10 @@
 
         .tile:nth-child(2) {
             border-top: 3px solid var(--green);
+        }
+
+        .tile:nth-child(3) {
+            border-top: 3px solid var(--accent);
         }
 
         .tile.is-active {
@@ -219,6 +223,12 @@
                 <div class="tile-value" id="foulsValue">0</div>
                 <div class="tile-arrow" aria-hidden="true">▼</div>
             </article>
+
+            <article class="tile" data-stat="players" tabindex="0">
+                <div class="tile-label">Player List</div>
+                <div class="tile-value" id="playersValue">0</div>
+                <div class="tile-arrow" aria-hidden="true">▼</div>
+            </article>
         </section>
 
         <section class="details-panel" id="detailsPanel" aria-live="polite">
@@ -232,15 +242,43 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imppd3pwa3NodmxhcHlubHV1dm51Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3NTMyODMsImV4cCI6MjEwMDMyOTI4M30.cDYToT-IvI1dzD6VWsxAhZ5HMDeFlwes_4X9PKlzZ_g';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const state = { matches: [], events: [] };
+        const state = { matches: [], events: [], players: [] };
 
         function updateTile(id, value) { const el = document.getElementById(id); if (el) el.textContent = Number(value || 0); }
+
+        function getPlayerDisplayName(player) {
+            if (!player) return 'Unknown';
+            return player.player_name || player.name || player.full_name || `${player.first_name || ''} ${player.last_name || ''}`.trim() || `Player ${player.id || 'Unknown'}`;
+        }
 
         function renderDetails(statType) {
             const panel = document.getElementById('detailsPanel');
             const title = document.getElementById('detailsTitle');
             const list = document.getElementById('detailsList');
             list.innerHTML = '';
+
+            if (statType === 'players') {
+                title.textContent = 'Player List';
+                const rows = (state.players || []).map(player => ({
+                    id: player.id,
+                    name: getPlayerDisplayName(player)
+                })).sort((a, b) => a.name.localeCompare(b.name));
+
+                if (!rows.length) {
+                    list.innerHTML = '<div class="detail-item"><div>No players found</div></div>';
+                    panel.classList.add('visible');
+                    return;
+                }
+
+                rows.forEach(r => {
+                    const item = document.createElement('div');
+                    item.className = 'detail-item';
+                    item.innerHTML = `<div>${r.name}</div><div></div>`;
+                    list.appendChild(item);
+                });
+                panel.classList.add('visible');
+                return;
+            }
 
             const eventType = statType === 'goals' ? 'goal' : 'foul';
             title.textContent = `${statType.charAt(0).toUpperCase() + statType.slice(1)} by Player`;
@@ -271,18 +309,21 @@
         }
 
         async function loadStats() {
-            const [{ data: matches, error: matchesError }, { data: events, error: eventsError }] = await Promise.all([
+            const [{ data: matches, error: matchesError }, { data: events, error: eventsError }, { data: players, error: playersError }] = await Promise.all([
                 supabaseClient.from('matches').select('id, home_team, away_team, home_score, away_score, created_at'),
-                supabaseClient.from('match_events').select('id, match_id, event_type, team, player_name, match_time_sec')
+                supabaseClient.from('match_events').select('id, match_id, event_type, team, player_name, match_time_sec'),
+                supabaseClient.from('players').select('*').order('id', { ascending: true })
             ]);
             if (matchesError) console.error('matches error', matchesError);
             if (eventsError) console.error('events error', eventsError);
-            state.matches = matches || []; state.events = events || [];
+            if (playersError) console.error('players error', playersError);
+            state.matches = matches || []; state.events = events || []; state.players = players || [];
 
             const totalGoals = (state.events || []).filter(e => e.event_type === 'goal').length;
             const totalFouls = (state.events || []).filter(e => e.event_type === 'foul').length;
             updateTile('goalsValue', totalGoals);
             updateTile('foulsValue', totalFouls);
+            updateTile('playersValue', state.players.length);
         }
 
         function subscribeToChanges() {
@@ -290,6 +331,7 @@
                 .channel('public:player-stats')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => { loadStats(); })
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'match_events' }, () => { loadStats(); })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => { loadStats(); })
                 .subscribe();
         }
 
