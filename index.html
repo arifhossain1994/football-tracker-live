@@ -54,11 +54,40 @@
         }
 
         .subtitle {
-            margin: 18px 0 42px;
+            margin: 18px 0 12px;
             color: var(--muted);
             font-size: 1.1rem;
             letter-spacing: 0.08em;
             text-transform: uppercase;
+        }
+
+        .visit-counter {
+            position: fixed;
+            top: 18px;
+            left: 18px;
+            z-index: 25;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            border: 1px solid rgba(88, 166, 255, 0.45);
+            border-radius: 999px;
+            background: rgba(11, 14, 20, 0.8);
+            backdrop-filter: blur(8px);
+            color: var(--text);
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.2);
+        }
+
+        .visit-counter .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #2ea043;
+            box-shadow: 0 0 12px rgba(46, 160, 67, 0.9);
         }
 
         .links {
@@ -403,6 +432,11 @@
         </div>
     </div>
     <main>
+        <div class="visit-counter" aria-live="polite">
+            <span class="dot" aria-hidden="true"></span>
+            <span id="visitCounter">Loading visits...</span>
+        </div>
+
         <p class="eyebrow">MKE BD Football League</p>
         <h1>Football</h1>
         <p class="subtitle">Score Tracker</p>
@@ -457,6 +491,43 @@
     </main>
 
     <script>
+        const BASE = "https://countapi.mileshilliard.com/api/v1";
+        const KEY = "football-tracker-home-page";
+        const STORAGE_KEY = "football_tracker_home_page_seen";
+
+        const counter = document.getElementById('visitCounter');
+
+        function showCount(value) {
+            if (counter) {
+                counter.textContent = `Total Visits: ${value}`;
+            }
+        }
+
+        function handleCountError() {
+            if (counter) {
+                counter.textContent = 'Total Visits: unavailable';
+            }
+        }
+
+        if (!localStorage.getItem(STORAGE_KEY)) {
+            fetch(`${BASE}/hit/${KEY}`)
+                .then((res) => res.json())
+                .then((data) => {
+                    const visitCount = data && data.value ? data.value : 0;
+                    localStorage.setItem(STORAGE_KEY, 'true');
+                    showCount(visitCount);
+                })
+                .catch(handleCountError);
+        } else {
+            fetch(`${BASE}/get/${KEY}`)
+                .then((res) => res.json())
+                .then((data) => {
+                    const visitCount = data && data.value ? data.value : 0;
+                    showCount(visitCount);
+                })
+                .catch(handleCountError);
+        }
+
         const addMatchButton = document.querySelector('.add-match-button');
         const addMatchMenu = document.getElementById('addMatchMenu');
         const addMatchForm = document.querySelector('.add-match-form');
